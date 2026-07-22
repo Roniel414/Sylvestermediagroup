@@ -87,6 +87,8 @@
     margin-top:28px; max-width:560px; font-size:18px; color:#4A5270; font-weight:400;
   }
   .hero-actions{display:flex;gap:18px;margin-top:44px;flex-wrap:wrap;}
+  .pricing-line{margin-top:20px;font-size:14px;color:#5A6178;letter-spacing:0.01em;}
+  .pricing-line strong{color:var(--navy);font-weight:600;}
   .btn-primary{
     background:var(--navy); color:#fff; padding:16px 32px; font-weight:600; font-size:14px;
     letter-spacing:0.02em; border-radius:2px; transition:transform .2s ease, background .2s ease;
@@ -160,6 +162,7 @@
   .service-mark{font-family:'Fraunces',serif; font-style:italic; font-size:15px; color:var(--silver-dark); padding-top:4px;}
   .service-row h3{font-size:22px; font-weight:600; color:var(--navy);}
   .service-row p{color:#5A6178; font-size:15px;}
+  .service-price{color:var(--steel) !important; font-size:13px !important; font-weight:600; letter-spacing:0.03em; margin-top:6px;}
   @media(max-width:700px){
     .service-row{grid-template-columns:1fr; gap:8px;}
     .service-mark{display:none;}
@@ -233,12 +236,9 @@
     <div class="hero-actions">
       <a href="https://calendly.com/roniel414/3way" target="_blank" class="btn-primary">Start a project</a>
       <a href="#services" class="btn-ghost">See our services</a>
-      <div class="hero-actions">
-      <a href="https://calendly.com/roniel414/3way" target="_blank" class="btn-primary">Start a project</a>
-      <a href="#services" class="btn-ghost">See our services</a>
       <a href="intake.html" class="btn-ghost">Get a Landing Page Quote</a>
     </div>
-    </div>
+    <p class="pricing-line">Landing pages starting at <strong>$297</strong>.</p>
     <div class="soundwave" aria-hidden="true">
       <span></span><span></span><span></span><span></span><span></span><span></span>
       <span></span><span></span><span></span><span></span><span></span><span></span>
@@ -283,6 +283,7 @@
         <div class="service-mark">01</div>
         <h3>Landing Pages</h3>
         <p>Custom, mobile-responsive pages with booking and payment integrations built in — live and ready to take clients.</p>
+        <p class="service-price">Starting at $297</p>
       </div>
       <div class="service-row">
         <div class="service-mark">02</div>
