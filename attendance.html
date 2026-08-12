@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance Log — MCIS</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Attendance Log">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+  :root{
+    --steel-900:#12181f;
+    --steel-800:#1b2431;
+    --steel-700:#26313f;
+    --steel-600:#3a4756;
+    --steel-500:#5b6b7d;
+    --paper:#eef1f3;
+    --safety:#e8621a;
+    --safety-dim:#c2510f;
+    --ok:#4f9d69;
+    --warn:#d6a419;
+    --bad:#c94a3f;
+    --font-display:'Bahnschrift','Segoe UI Semibold','Arial Narrow',sans-serif;
+    --font-mono:'Consolas','SF Mono',monospace;
+    --font-body:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--steel-900);
+    color:var(--paper);
+    font-family:var(--font-body);
+    min-height:100vh;
+  }
+  .stripe-top{
+    height:8px;
+    background:repeating-linear-gradient(45deg,var(--safety) 0 14px,var(--steel-900) 14px 28px);
+  }
+  header{
+    padding:22px 20px 16px;
+    border-bottom:1px solid var(--steel-700);
+  }
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.18em;
+    color:var(--safety);
+    text-transform:uppercase;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:26px;
+    margin:4px 0 2px;
+    letter-spacing:.01em;
+  }
+  .sub{
+    font-size:13px;
+    color:var(--steel-500);
+  }
+  main{
+    max-width:640px;
+    margin:0 auto;
+    padding:18px 16px 60px;
+  }
+  .card{
+    background:var(--steel-800);
+    border:1px solid var(--steel-700);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .card h2{
+    font-family:var(--font-display);
+    font-size:14px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--steel-500);
+    margin:0 0 12px;
+  }
+  label{
+    display:block;
+    font-size:12px;
+    color:var(--steel-500);
+    margin:10px 0 5px;
+  }
+  input[type=text],select,input[type=date],textarea{
+    width:100%;
+    background:var(--steel-900);
+    border:1px solid var(--steel-600);
+    color:var(--paper);
+    padding:10px 12px;
+    border-radius:6px;
+    font-size:15px;
+    font-family:var(--font-body);
+  }
+  textarea{resize:vertical;min-height:50px;}
+  .row{display:flex;gap:10px;}
+  .row > div{flex:1;}
+  .mic-row{display:flex;gap:8px;align-items:stretch;}
+  .mic-row input{flex:1;}
+  button.mic{
+    background:var(--steel-700);
+    border:1px solid var(--steel-600);
+    color:var(--paper);
+    border-radius:6px;
+    width:44px;
+    font-size:18px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  button.mic.listening{
+    background:var(--safety);
+    border-color:var(--safety);
+    animation:pulse 1s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:1;}
+    50%{opacity:.55;}
+  }
+  .submit-btn{
+    width:100%;
+    margin-top:16px;
+    background:var(--safety);
+    color:#fff;
+    border:none;
+    padding:13px;
+    border-radius:6px;
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    cursor:pointer;
+  }
+  .submit-btn:active{background:var(--safety-dim);}
+  .voice-hint{
+    font-size:11px;
+    color:var(--steel-500);
+    margin-top:8px;
+    line-height:1.4;
+  }
+  .list-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px;
+  }
+  .filter-btns{display:flex;gap:6px;}
+  .filter-btns button{
+    background:var(--steel-700);
+    border:1px solid var(--steel-600);
+    color:var(--steel-500);
+    font-size:11px;
+    padding:5px 9px;
+    border-radius:5px;
+    cursor:pointer;
+    font-family:var(--font-mono);
+  }
+  .filter-btns button.active{
+    background:var(--safety);
+    border-color:var(--safety);
+    color:#fff;
+  }
+  .person{
+    border:1px solid var(--steel-700);
+    border-radius:8px;
+    margin-bottom:10px;
+    overflow:hidden;
+  }
+  .person-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 14px;
+    cursor:pointer;
+    background:var(--steel-800);
+  }
+  .person-name{
+    font-weight:600;
+    font-size:15px;
+  }
+  .count-pill{
+    font-family:var(--font-mono);
+    font-size:12px;
+    font-weight:700;
+    padding:3px 10px;
+    border-radius:20px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .count-pill.ok{background:rgba(79,157,105,.18);color:var(--ok);}
+  .count-pill.warn{background:rgba(214,164,25,.18);color:var(--warn);}
+  .count-pill.bad{background:rgba(201,74,63,.18);color:var(--bad);}
+  .flag-tag{
+    font-family:var(--font-mono);
+    font-size:9px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--bad);
+    border:1px solid var(--bad);
+    border-radius:4px;
+    padding:1px 5px;
+    margin-left:6px;
+  }
+  .person-body{
+    display:none;
+    padding:6px 14px 14px;
+    border-top:1px solid var(--steel-700);
+  }
+  .person-body.open{display:block;}
+  .incident{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    padding:9px 0;
+    border-bottom:1px solid var(--steel-700);
+    font-size:13px;
+    gap:10px;
+  }
+  .incident:last-child{border-bottom:none;}
+  .incident-type{
+    font-weight:600;
+    color:var(--paper);
+  }
+  .incident-note{
+    color:var(--steel-500);
+    font-size:12px;
+    margin-top:2px;
+  }
+  .incident-date{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--steel-500);
+    white-space:nowrap;
+  }
+  .del-btn{
+    background:none;
+    border:none;
+    color:var(--bad);
+    font-size:16px;
+    cursor:pointer;
+    padding:0 0 0 8px;
+    line-height:1;
+  }
+  .empty{
+    text-align:center;
+    color:var(--steel-500);
+    font-size:13px;
+    padding:30px 10px;
+  }
+  .threshold-note{
+    font-size:11px;
+    color:var(--steel-500);
+    margin-top:4px;
+  }
+</style>
+</head>
+<body>
+<div class="stripe-top"></div>
+<header>
+  <div class="eyebrow">MCIS · Field Attendance</div>
+  <h1>Attendance Log</h1>
+  <div class="sub">Track time-sheet errors by name. Flags when it's time for a conversation.</div>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Log an error</h2>
+
+    <label for="nameInput">Name</label>
+    <div class="mic-row">
+      <input type="text" id="nameInput" placeholder="Employee name" list="nameSuggestions">
+      <datalist id="nameSuggestions"></datalist>
+      <button class="mic" id="micName" title="Speak name">🎤</button>
+    </div>
+
+    <label for="typeSelect">Error type</label>
+    <select id="typeSelect">
+      <option>Late clock-in</option>
+      <option>Missed clock-out</option>
+      <option>Missed punch (in or out)</option>
+      <option>No call / no show</option>
+      <option>Left early</option>
+      <option>Long/unauthorized break</option>
+      <option>Wrong job code / project</option>
+      <option>Manual time correction needed</option>
+      <option>Other</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label for="dateInput">Date</label>
+        <input type="date" id="dateInput">
+      </div>
+    </div>
+
+    <label for="noteInput">Notes (optional)</label>
+    <div class="mic-row">
+      <textarea id="noteInput" placeholder="Any detail worth remembering"></textarea>
+      <button class="mic" id="micNote" title="Speak notes">🎤</button>
+    </div>
+
+    <button class="submit-btn" id="logBtn">Log this error</button>
+    <div class="voice-hint" id="voiceHint"></div>
+  </div>
+
+  <div class="card">
+    <div class="list-header">
+      <h2 style="margin:0;">Roll</h2>
+      <div class="filter-btns">
+        <button data-sort="count" class="active">By count</button>
+        <button data-sort="recent">Recent</button>
+        <button data-sort="name">A–Z</button>
+      </div>
+    </div>
+    <div class="threshold-note">3+ errors highlighted yellow · 5+ flagged for a conversation</div>
+    <div id="rollList" style="margin-top:12px;"></div>
+  </div>
+</main>
+
+<script>
+const STORE_KEY = 'attendance-incidents';
+const ROSTER_KEY = 'attendance-roster';
+
+const DEFAULT_ROSTER = [
+  ["Corlletha Smith","Safety Coordinator"],
+  ["Nathaniel Bray","Safety Coordinator"],
+  ["Michael Dials","Safety Coordinator"],
+  ["George Marquez","Senior Foreman"],
+  ["Braydon Welty","Foreman"],
+  ["Gael Lujano","Foreman"],
+  ["Rosario Garcia","Foreman"],
+  ["Brice Burdette","Foreman"],
+  ["Arthur Ortega","Foreman"],
+  ["Alonzo Romero","Team Leader"],
+  ["Casey Minshew","Team Leader"],
+  ["Eduardo Ramiro","Team Leader"],
+  ["Joe Pearson","Team Leader"],
+  ["Joshua Briseno","Team Leader"],
+  ["Kevin Hammons","Team Leader"],
+  ["Oscar Escamilla","Team Leader"],
+  ["Quincy Walker II","Team Leader"],
+  ["Sixto Hernandez","Team Leader"],
+  ["Yohandry Castillo","Team Leader"],
+  ["Adolfo Aleman","Installer"],
+  ["Adrian Hernandez","Installer"],
+  ["Alejandro Sanchez","Installer"],
+  ["Angel Escamilla","Installer"],
+  ["Ariyely Villegas","Installer"],
+  ["Arnold Ogola","Installer"],
+  ["Blake Petty","Installer"],
+  ["Brenden \"B\" Taylor","Installer"],
+  ["Carlos Rojano","Installer"],
+  ["Dalton Davis","Installer"],
+  ["Eduardo Gutierrez","Installer"],
+  ["Eukarys Garcia","Installer"],
+  ["Francianny Rojano","Installer"],
+  ["Gregory Rodriguez","Installer"],
+  ["Javier Martinez","Installer"],
+  ["Jaelen \"Jay\" Taylor","Installer"],
+  ["Johnathan Jacinto","Installer"],
+  ["Jonathan Sanchez","Installer"],
+  ["Jordan Johnson","Installer"],
+  ["Josiah Arredondo","Installer"],
+  ["Lamarcus Watts","Installer"],
+  ["Leonardo Catalan","Installer"],
+  ["Levon Davis","Installer"],
+  ["Luinis Salguero","Installer"],
+  ["Luis Hernandez","Installer"],
+  ["Luis Romero","Installer"],
+  ["Miguel Ortiz","Installer"],
+  ["Militza Ocando","Installer"],
+  ["Moises Arriaga","Installer"],
+  ["Ricardo \"Ricky\" Perez","Installer"],
+  ["Ronald Escobar","Installer"],
+  ["Sidney Carlos Roberts","Installer"],
+  ["Tabata Hernandez","Installer"],
+  ["Yurimar Herrera","Installer"],
+  ["Christopher Henry","Safety Spotter"],
+  ["Herminia Angel","Safety Spotter"],
+  ["Jose Hurtado","Safety Spotter"],
+  ["LaBrycne Johnson","Safety Spotter"],
+  ["Shuntasia Gillyard","Safety Spotter"],
+  ["Taran Scott","Safety Spotter"]
+].map(([name, role]) => ({name, role}));
+
+let incidents = [];
+let roster = [];
+let sortMode = 'count';
+
+async function load(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    incidents = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    incidents = [];
+  }
+  try{
+    const rawRoster = localStorage.getItem(ROSTER_KEY);
+    roster = rawRoster ? JSON.parse(rawRoster) : null;
+  }catch(e){
+    roster = null;
+  }
+  if(!roster){
+    roster = DEFAULT_ROSTER;
+    saveRoster();
+  }
+  render();
+}
+
+function saveRoster(){
+  try{
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(roster));
+  }catch(e){
+    console.error('Roster save failed', e);
+  }
+}
+
+function save(){
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify(incidents));
+  }catch(e){
+    console.error('Save failed', e);
+  }
+}
+
+document.getElementById('dateInput').valueAsDate = new Date();
+
+document.getElementById('logBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('nameInput').value.trim();
+  const type = document.getElementById('typeSelect').value;
+  const date = document.getElementById('dateInput').value || new Date().toISOString().slice(0,10);
+  const note = document.getElementById('noteInput').value.trim();
+
+  if(!name){
+    document.getElementById('nameInput').focus();
+    return;
+  }
+
+  incidents.push({
+    id: 'inc_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    name, type, date, note,
+    logged: new Date().toISOString()
+  });
+
+  document.getElementById('nameInput').value = '';
+  document.getElementById('noteInput').value = '';
+  document.getElementById('dateInput').valueAsDate = new Date();
+
+  save();
+  render();
+});
+
+document.querySelectorAll('.filter-btns button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.filter-btns button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    sortMode = btn.dataset.sort;
+    render();
+  });
+});
+
+function roleFor(name){
+  const r = roster.find(p => p.name === name);
+  return r ? r.role : '';
+}
+
+function groupByName(){
+  const groups = {};
+  roster.forEach(p=>{
+    groups[p.name] = [];
+  });
+  incidents.forEach(inc=>{
+    if(!groups[inc.name]) groups[inc.name] = [];
+    groups[inc.name].push(inc);
+  });
+  return groups;
+}
+
+function render(){
+  const groups = groupByName();
+  const names = Object.keys(groups);
+
+  const datalist = document.getElementById('nameSuggestions');
+  datalist.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}">`).join('');
+
+  const rollList = document.getElementById('rollList');
+  if(names.length === 0){
+    rollList.innerHTML = '<div class="empty">No errors logged yet. Add one above to start the roll.</div>';
+    return;
+  }
+
+  let sortedNames;
+  if(sortMode === 'count'){
+    sortedNames = names.sort((a,b)=> groups[b].length - groups[a].length);
+  } else if(sortMode === 'recent'){
+    sortedNames = names.sort((a,b)=>{
+      const latestA = Math.max(...groups[a].map(i=>new Date(i.date).getTime()));
+      const latestB = Math.max(...groups[b].map(i=>new Date(i.date).getTime()));
+      return latestB - latestA;
+    });
+  } else {
+    sortedNames = names.sort((a,b)=> a.localeCompare(b));
+  }
+
+  rollList.innerHTML = sortedNames.map(name=>{
+    const list = groups[name].slice().sort((a,b)=> new Date(b.date) - new Date(a.date));
+    const count = list.length;
+    let pillClass = 'ok';
+    if(count >= 5) pillClass = 'bad';
+    else if(count >= 3) pillClass = 'warn';
+
+    const flag = count >= 5 ? '<span class="flag-tag">Talk to them</span>' : '';
+    const role = roleFor(name);
+
+    const incidentsHtml = list.length ? list.map(inc=>`
+      <div class="incident">
+        <div>
+          <div class="incident-type">${escapeHtml(inc.type)}</div>
+          ${inc.note ? `<div class="incident-note">${escapeHtml(inc.note)}</div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;">
+          <div class="incident-date">${formatDate(inc.date)}</div>
+          <button class="del-btn" data-id="${inc.id}" title="Delete this entry">✕</button>
+        </div>
+      </div>
+    `).join('') : '<div style="padding:10px 0;color:var(--steel-500);font-size:12px;">No errors logged.</div>';
+
+    return `
+      <div class="person">
+        <div class="person-head" data-name="${escapeHtml(name)}">
+          <div class="person-name">${escapeHtml(name)}${role ? `<span style="display:block;font-weight:400;font-size:11px;color:var(--steel-500);margin-top:1px;">${escapeHtml(role)}</span>` : ''}${flag}</div>
+          <div class="count-pill ${pillClass}">${count}×</div>
+        </div>
+        <div class="person-body" id="body-${cssSafe(name)}">
+          ${incidentsHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  document.querySelectorAll('.person-head').forEach(head=>{
+    head.addEventListener('click', ()=>{
+      const name = head.dataset.name;
+      const body = document.getElementById('body-' + cssSafe(name));
+      body.classList.toggle('open');
+    });
+  });
+
+  document.querySelectorAll('.del-btn').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      incidents = incidents.filter(i=>i.id !== id);
+      save();
+      render();
+    });
+  });
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+function cssSafe(str){
+  return str.replace(/[^a-zA-Z0-9]/g,'_');
+}
+function formatDate(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+
+// Voice input via Web Speech API
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const hint = document.getElementById('voiceHint');
+
+if(!SpeechRecognition){
+  hint.textContent = 'Voice input isn\'t supported in this browser — you can still type everything above.';
+} else {
+  hint.textContent = 'Tap a mic icon and speak — it fills that field for you.';
+  setupMic('micName','nameInput', false);
+  setupMic('micNote','noteInput', true);
+}
+
+function setupMic(btnId, inputId, append){
+  const btn = document.getElementById(btnId);
+  const input = document.getElementById(inputId);
+  let recognizing = false;
+  let recognition;
+
+  btn.addEventListener('click', ()=>{
+    if(recognizing){
+      recognition.stop();
+      return;
+    }
+    recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = ()=>{
+      recognizing = true;
+      btn.classList.add('listening');
+    };
+    recognition.onend = ()=>{
+      recognizing = false;
+      btn.classList.remove('listening');
+    };
+    recognition.onerror = ()=>{
+      recognizing = false;
+      btn.classList.remove('listening');
+    };
+    recognition.onresult = (event)=>{
+      const transcript = event.results[0][0].transcript;
+      if(append && input.value.trim()){
+        input.value = input.value.trim() + ' ' + transcript;
+      } else {
+        input.value = transcript;
+      }
+    };
+    recognition.start();
+  });
+}
+
+load();
+</script>
+</body>
+</html>
