@@ -328,6 +328,17 @@
 
     <button id="toggleRosterList" style="width:100%;margin-top:14px;background:none;border:1px solid var(--steel-600);color:var(--steel-500);padding:9px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font-mono);">Show current roster ▾</button>
     <div id="rosterManageList" style="display:none;margin-top:10px;max-height:320px;overflow-y:auto;"></div>
+
+    <div style="border-top:1px solid var(--steel-700);margin-top:18px;padding-top:16px;">
+      <label style="margin-top:0;">Bulk update from a spreadsheet</label>
+      <div style="font-size:11px;color:var(--steel-500);margin-bottom:10px;line-height:1.5;">
+        Upload the latest roster (Excel or CSV). New names get added, and anyone missing from the file gets flagged to remove — you review and approve before anything changes.
+      </div>
+      <input type="file" id="rosterFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
+      <button id="chooseRosterFileBtn" style="width:100%;background:var(--steel-700);border:1px solid var(--steel-600);color:var(--paper);padding:10px;border-radius:6px;font-size:13px;cursor:pointer;">Choose file</button>
+      <div id="importFileName" style="font-size:11px;color:var(--steel-500);margin-top:6px;"></div>
+      <div id="importPreview" style="display:none;margin-top:12px;"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -344,6 +355,7 @@
   </div>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -544,6 +556,102 @@ document.getElementById('toggleRosterList').addEventListener('click', () => {
   container.style.display = container.style.display === 'none' ? 'block' : 'none';
   renderRosterManageList();
 });
+
+// --- Bulk import from Excel/CSV ---
+let pendingImportRoster = null;
+
+document.getElementById('chooseRosterFileBtn').addEventListener('click', () => {
+  document.getElementById('rosterFileInput').click();
+});
+
+document.getElementById('rosterFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('importFileName').textContent = 'Reading ' + file.name + '…';
+
+  try{
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+
+    const parsed = [];
+    const seen = new Set();
+    for(const row of rows){
+      const cells = row
+        .map(c => (typeof c === 'string' ? c.trim() : c))
+        .filter(c => c !== '' && c !== null && c !== undefined)
+        .filter(c => !(typeof c === 'number'))
+        .filter(c => !(typeof c === 'string' && /^\d+$/.test(c))); // drop row-number columns
+
+      if(cells.length === 0) continue;
+      const name = String(cells[0]).trim();
+      const role = cells[1] ? String(cells[1]).trim() : 'Unspecified';
+
+      if(!name) continue;
+      if(name.toLowerCase() === 'name' || name.toLowerCase().includes('column')) continue; // skip header rows
+      const key = name.toLowerCase();
+      if(seen.has(key)) continue;
+      seen.add(key);
+      parsed.push({ name, role });
+    }
+
+    if(parsed.length === 0){
+      document.getElementById('importFileName').textContent = 'Could not find any names in that file. Try a different sheet or format.';
+      return;
+    }
+
+    document.getElementById('importFileName').textContent = file.name + ' — ' + parsed.length + ' names found.';
+    showImportPreview(parsed);
+  }catch(err){
+    console.error('Import parse failed', err);
+    document.getElementById('importFileName').textContent = 'Could not read that file — make sure it\'s a valid Excel or CSV file.';
+  }
+});
+
+function showImportPreview(parsedRoster){
+  pendingImportRoster = parsedRoster;
+  const currentNames = new Set(roster.map(p => p.name.toLowerCase()));
+  const parsedNames = new Set(parsedRoster.map(p => p.name.toLowerCase()));
+
+  const toAdd = parsedRoster.filter(p => !currentNames.has(p.name.toLowerCase()));
+  const toRemove = roster.filter(p => !parsedNames.has(p.name.toLowerCase()));
+
+  const preview = document.getElementById('importPreview');
+  preview.style.display = 'block';
+  preview.innerHTML = `
+    <div style="background:var(--steel-900);border:1px solid var(--steel-600);border-radius:8px;padding:12px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Review before applying</div>
+      <div style="font-size:12px;color:var(--ok);margin-bottom:4px;">+ ${toAdd.length} new: ${toAdd.length ? toAdd.map(p=>escapeHtml(p.name)).join(', ') : 'none'}</div>
+      <div style="font-size:12px;color:var(--bad);margin-bottom:10px;">\u2212 ${toRemove.length} not in this file (will be removed from active roster): ${toRemove.length ? toRemove.map(p=>escapeHtml(p.name)).join(', ') : 'none'}</div>
+      <div style="font-size:11px;color:var(--steel-500);margin-bottom:10px;">Removed people's past logged errors stay on record \u2014 this only updates who's active.</div>
+      <div style="display:flex;gap:8px;">
+        <button id="applyImportBtn" style="flex:1;background:var(--safety);border:none;color:#fff;padding:9px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">Apply changes</button>
+        <button id="cancelImportBtn" style="flex:1;background:none;border:1px solid var(--steel-600);color:var(--steel-500);padding:9px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('applyImportBtn').addEventListener('click', async () => {
+    try{
+      await setDoc(rosterDocRef, { list: pendingImportRoster });
+      preview.style.display = 'none';
+      document.getElementById('importFileName').textContent = 'Roster updated.';
+      document.getElementById('rosterFileInput').value = '';
+    }catch(e){
+      console.error('Import apply failed', e);
+      alert('Could not apply the update \u2014 check your internet connection and try again.');
+    }
+  });
+
+  document.getElementById('cancelImportBtn').addEventListener('click', () => {
+    preview.style.display = 'none';
+    pendingImportRoster = null;
+    document.getElementById('rosterFileInput').value = '';
+    document.getElementById('importFileName').textContent = '';
+  });
+}
 
 async function saveIncident(incident){
   try{
