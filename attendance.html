@@ -321,7 +321,26 @@
   </div>
 </main>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD7Om5pMru-V-tTC8D9i45c1JYv3hCFXfU",
+  authDomain: "mcis-attendance-log.firebaseapp.com",
+  projectId: "mcis-attendance-log",
+  storageBucket: "mcis-attendance-log.firebasestorage.app",
+  messagingSenderId: "609720730664",
+  appId: "1:609720730664:web:4d508a6e29d9a1d6c9e11d"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const incidentsCol = collection(db, "mcis_attendance");
+const rosterDocRef = doc(db, "mcis_attendance_meta", "roster");
+
 const STORE_KEY = 'attendance-incidents';
 const ROSTER_KEY = 'attendance-roster';
 
@@ -391,39 +410,63 @@ let incidents = [];
 let roster = [];
 let sortMode = 'count';
 
+let dbReady = false;
+
 async function load(){
+  // Seed the roster in Firestore once, if it doesn't exist yet.
   try{
-    const raw = localStorage.getItem(STORE_KEY);
-    incidents = raw ? JSON.parse(raw) : [];
+    const snap = await getDocs(collection(db, "mcis_attendance_meta"));
+    let hasRoster = false;
+    snap.forEach(d => { if(d.id === 'roster') hasRoster = true; });
+    if(!hasRoster){
+      await setDoc(rosterDocRef, { list: DEFAULT_ROSTER });
+    }
   }catch(e){
-    incidents = [];
+    console.error('Roster seed check failed', e);
   }
-  try{
-    const rawRoster = localStorage.getItem(ROSTER_KEY);
-    roster = rawRoster ? JSON.parse(rawRoster) : null;
-  }catch(e){
-    roster = null;
-  }
-  if(!roster){
+
+  // Live-sync the roster.
+  onSnapshot(rosterDocRef, (snap) => {
+    if(snap.exists()){
+      roster = snap.data().list || DEFAULT_ROSTER;
+    } else {
+      roster = DEFAULT_ROSTER;
+    }
+    render();
+  }, (err) => {
+    console.error('Roster sync error', err);
     roster = DEFAULT_ROSTER;
-    saveRoster();
-  }
-  render();
+    render();
+  });
+
+  // Live-sync incidents — this fires immediately with current data, then
+  // again in real time whenever any device adds or deletes an entry.
+  onSnapshot(incidentsCol, (snap) => {
+    incidents = [];
+    snap.forEach(d => incidents.push(d.data()));
+    dbReady = true;
+    render();
+  }, (err) => {
+    console.error('Incidents sync error', err);
+    hint.textContent = 'Could not connect to the shared database — check your connection.';
+  });
 }
 
-function saveRoster(){
+async function saveIncident(incident){
   try{
-    localStorage.setItem(ROSTER_KEY, JSON.stringify(roster));
-  }catch(e){
-    console.error('Roster save failed', e);
-  }
-}
-
-function save(){
-  try{
-    localStorage.setItem(STORE_KEY, JSON.stringify(incidents));
+    await setDoc(doc(db, "mcis_attendance", incident.id), incident);
   }catch(e){
     console.error('Save failed', e);
+    alert('Could not save — check your internet connection and try again.');
+  }
+}
+
+async function deleteIncident(id){
+  try{
+    await deleteDoc(doc(db, "mcis_attendance", id));
+  }catch(e){
+    console.error('Delete failed', e);
+    alert('Could not delete — check your internet connection and try again.');
   }
 }
 
@@ -440,18 +483,19 @@ document.getElementById('logBtn').addEventListener('click', async ()=>{
     return;
   }
 
-  incidents.push({
+  const incident = {
     id: 'inc_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     name, type, date, note,
     logged: new Date().toISOString()
-  });
+  };
 
   document.getElementById('nameInput').value = '';
   document.getElementById('noteInput').value = '';
   document.getElementById('dateInput').valueAsDate = new Date();
 
-  save();
-  render();
+  await saveIncident(incident);
+  // No need to call render() here — onSnapshot fires automatically once
+  // Firestore confirms the write, on this device and every other one.
 });
 
 document.querySelectorAll('.filter-btns button').forEach(btn=>{
@@ -554,9 +598,8 @@ function render(){
     btn.addEventListener('click', async (e)=>{
       e.stopPropagation();
       const id = btn.dataset.id;
-      incidents = incidents.filter(i=>i.id !== id);
-      save();
-      render();
+      await deleteIncident(id);
+      // onSnapshot updates the list automatically.
     });
   });
 }
