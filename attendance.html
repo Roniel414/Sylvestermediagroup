@@ -308,6 +308,29 @@
   </div>
 
   <div class="card">
+    <h2>Manage Team</h2>
+
+    <label for="newPersonName">Name</label>
+    <input type="text" id="newPersonName" placeholder="Full name">
+
+    <label for="newPersonRole">Role</label>
+    <select id="newPersonRole">
+      <option>Installer</option>
+      <option>Team Leader</option>
+      <option>Foreman</option>
+      <option>Senior Foreman</option>
+      <option>Safety Coordinator</option>
+      <option>Safety Spotter</option>
+      <option>Other</option>
+    </select>
+
+    <button class="submit-btn" id="addPersonBtn" style="background:var(--steel-700);">Add to roster</button>
+
+    <button id="toggleRosterList" style="width:100%;margin-top:14px;background:none;border:1px solid var(--steel-600);color:var(--steel-500);padding:9px;border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font-mono);">Show current roster ▾</button>
+    <div id="rosterManageList" style="display:none;margin-top:10px;max-height:320px;overflow-y:auto;"></div>
+  </div>
+
+  <div class="card">
     <div class="list-header">
       <h2 style="margin:0;">Roll</h2>
       <div class="filter-btns">
@@ -433,10 +456,12 @@ async function load(){
       roster = DEFAULT_ROSTER;
     }
     render();
+    renderRosterManageList();
   }, (err) => {
     console.error('Roster sync error', err);
     roster = DEFAULT_ROSTER;
     render();
+    renderRosterManageList();
   });
 
   // Live-sync incidents — this fires immediately with current data, then
@@ -451,6 +476,74 @@ async function load(){
     hint.textContent = 'Could not connect to the shared database — check your connection.';
   });
 }
+
+async function addPerson(name, role){
+  if(roster.some(p => p.name.toLowerCase() === name.toLowerCase())){
+    alert(name + ' is already on the roster.');
+    return;
+  }
+  const newRoster = [...roster, {name, role}];
+  try{
+    await setDoc(rosterDocRef, { list: newRoster });
+  }catch(e){
+    console.error('Add person failed', e);
+    alert('Could not add — check your internet connection and try again.');
+  }
+}
+
+async function removePerson(name){
+  const ok = confirm('Remove ' + name + ' from the roster?\n\nTheir past logged errors stay on record — this only takes them off the active list.');
+  if(!ok) return;
+  const newRoster = roster.filter(p => p.name !== name);
+  try{
+    await setDoc(rosterDocRef, { list: newRoster });
+  }catch(e){
+    console.error('Remove person failed', e);
+    alert('Could not remove — check your internet connection and try again.');
+  }
+}
+
+function renderRosterManageList(){
+  const container = document.getElementById('rosterManageList');
+  if(!container) return;
+  const toggleBtn = document.getElementById('toggleRosterList');
+  if(toggleBtn){
+    toggleBtn.textContent = container.style.display === 'none'
+      ? 'Show current roster (' + roster.length + ') \u25be'
+      : 'Hide current roster (' + roster.length + ') \u25b4';
+  }
+  const sorted = roster.slice().sort((a,b) => a.name.localeCompare(b.name));
+  container.innerHTML = sorted.map(p => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;border-bottom:1px solid var(--steel-700);font-size:13px;">
+      <div>
+        <div>${escapeHtml(p.name)}</div>
+        <div style="font-size:11px;color:var(--steel-500);">${escapeHtml(p.role)}</div>
+      </div>
+      <button class="remove-person-btn" data-name="${escapeHtml(p.name)}" style="background:none;border:1px solid var(--bad);color:var(--bad);border-radius:5px;padding:5px 10px;font-size:11px;cursor:pointer;">Remove</button>
+    </div>
+  `).join('');
+  container.querySelectorAll('.remove-person-btn').forEach(btn => {
+    btn.addEventListener('click', () => removePerson(btn.dataset.name));
+  });
+}
+
+document.getElementById('addPersonBtn').addEventListener('click', async () => {
+  const nameInput = document.getElementById('newPersonName');
+  const roleSelect = document.getElementById('newPersonRole');
+  const name = nameInput.value.trim();
+  if(!name){
+    nameInput.focus();
+    return;
+  }
+  await addPerson(name, roleSelect.value);
+  nameInput.value = '';
+});
+
+document.getElementById('toggleRosterList').addEventListener('click', () => {
+  const container = document.getElementById('rosterManageList');
+  container.style.display = container.style.display === 'none' ? 'block' : 'none';
+  renderRosterManageList();
+});
 
 async function saveIncident(incident){
   try{
