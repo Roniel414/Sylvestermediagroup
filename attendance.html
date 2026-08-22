@@ -332,7 +332,7 @@
     <div style="border-top:1px solid var(--steel-700);margin-top:18px;padding-top:16px;">
       <label style="margin-top:0;">Bulk update from a spreadsheet</label>
       <div style="font-size:11px;color:var(--steel-500);margin-bottom:10px;line-height:1.5;">
-        Upload the latest roster (Excel or CSV). New names get added, and anyone missing from the file gets flagged to remove — you review and approve before anything changes.
+        Upload the latest roster (Excel or CSV). New names get added automatically. This never removes anyone, and duplicate names are skipped automatically.
       </div>
       <input type="file" id="rosterFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
       <button id="chooseRosterFileBtn" style="width:100%;background:var(--steel-700);border:1px solid var(--steel-600);color:var(--paper);padding:10px;border-radius:6px;font-size:13px;cursor:pointer;">Choose file</button>
@@ -611,23 +611,40 @@ document.getElementById('rosterFileInput').addEventListener('change', async (e) 
 });
 
 function showImportPreview(parsedRoster){
-  pendingImportRoster = parsedRoster;
+  // Add-only: never remove anyone via import. Match existing names
+  // case-insensitively so "john smith" in a new file doesn't duplicate
+  // "John Smith" already on the roster.
   const currentNames = new Set(roster.map(p => p.name.toLowerCase()));
-  const parsedNames = new Set(parsedRoster.map(p => p.name.toLowerCase()));
+  const toAdd = [];
+  const addedNames = new Set();
+  for(const p of parsedRoster){
+    const key = p.name.toLowerCase();
+    if(currentNames.has(key) || addedNames.has(key)) continue; // skip existing + skip dupes within the file
+    addedNames.add(key);
+    toAdd.push(p);
+  }
 
-  const toAdd = parsedRoster.filter(p => !currentNames.has(p.name.toLowerCase()));
-  const toRemove = roster.filter(p => !parsedNames.has(p.name.toLowerCase()));
+  pendingImportRoster = [...roster, ...toAdd];
 
   const preview = document.getElementById('importPreview');
   preview.style.display = 'block';
+
+  if(toAdd.length === 0){
+    preview.innerHTML = `
+      <div style="background:var(--steel-900);border:1px solid var(--steel-600);border-radius:8px;padding:12px;">
+        <div style="font-size:12px;color:var(--steel-500);">Every name in that file is already on the roster — nothing to add.</div>
+      </div>
+    `;
+    return;
+  }
+
   preview.innerHTML = `
     <div style="background:var(--steel-900);border:1px solid var(--steel-600);border-radius:8px;padding:12px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Review before applying</div>
-      <div style="font-size:12px;color:var(--ok);margin-bottom:4px;">+ ${toAdd.length} new: ${toAdd.length ? toAdd.map(p=>escapeHtml(p.name)).join(', ') : 'none'}</div>
-      <div style="font-size:12px;color:var(--bad);margin-bottom:10px;">\u2212 ${toRemove.length} not in this file (will be removed from active roster): ${toRemove.length ? toRemove.map(p=>escapeHtml(p.name)).join(', ') : 'none'}</div>
-      <div style="font-size:11px;color:var(--steel-500);margin-bottom:10px;">Removed people's past logged errors stay on record \u2014 this only updates who's active.</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Review before adding</div>
+      <div style="font-size:12px;color:var(--ok);margin-bottom:10px;">+ ${toAdd.length} new name${toAdd.length===1?'':'s'}: ${toAdd.map(p=>escapeHtml(p.name)).join(', ')}</div>
+      <div style="font-size:11px;color:var(--steel-500);margin-bottom:10px;">Nobody already on the roster is affected — this only adds these ${toAdd.length===1?'person':'people'}.</div>
       <div style="display:flex;gap:8px;">
-        <button id="applyImportBtn" style="flex:1;background:var(--safety);border:none;color:#fff;padding:9px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">Apply changes</button>
+        <button id="applyImportBtn" style="flex:1;background:var(--safety);border:none;color:#fff;padding:9px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;">Add ${toAdd.length===1?'this person':'these people'}</button>
         <button id="cancelImportBtn" style="flex:1;background:none;border:1px solid var(--steel-600);color:var(--steel-500);padding:9px;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>
       </div>
     </div>
@@ -637,11 +654,11 @@ function showImportPreview(parsedRoster){
     try{
       await setDoc(rosterDocRef, { list: pendingImportRoster });
       preview.style.display = 'none';
-      document.getElementById('importFileName').textContent = 'Roster updated.';
+      document.getElementById('importFileName').textContent = 'Added ' + toAdd.length + ' new name' + (toAdd.length===1?'':'s') + '.';
       document.getElementById('rosterFileInput').value = '';
     }catch(e){
       console.error('Import apply failed', e);
-      alert('Could not apply the update \u2014 check your internet connection and try again.');
+      alert('Could not apply the update — check your internet connection and try again.');
     }
   });
 
