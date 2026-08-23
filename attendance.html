@@ -351,11 +351,13 @@
       </div>
     </div>
     <div class="threshold-note">3+ errors highlighted yellow · 5+ flagged for a conversation</div>
+    <button id="downloadReportBtn" style="width:100%;margin-top:12px;background:var(--steel-700);border:1px solid var(--steel-600);color:var(--paper);padding:10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">⬇ Download Violations Report (PDF)</button>
     <div id="rollList" style="margin-top:12px;"></div>
   </div>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
@@ -741,6 +743,96 @@ function groupByName(){
   });
   return groups;
 }
+
+function generateReport(){
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const marginLeft = 15;
+  const marginRight = 15;
+  const usableWidth = pageWidth - marginLeft - marginRight;
+  let y = 20;
+
+  function newPageIfNeeded(spaceNeeded){
+    if(y + spaceNeeded > pageHeight - 15){
+      pdf.addPage();
+      y = 20;
+    }
+  }
+
+  // Header
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(16);
+  pdf.text('MCIS Attendance Violations Report', marginLeft, y);
+  y += 8;
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+  pdf.setTextColor(110, 110, 110);
+  const generatedStr = 'Generated ' + new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }) + ' at ' + new Date().toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+  pdf.text(generatedStr, marginLeft, y);
+  y += 10;
+  pdf.setDrawColor(200, 200, 200);
+  pdf.line(marginLeft, y, pageWidth - marginRight, y);
+  y += 8;
+
+  const groups = groupByName();
+  const withViolations = Object.keys(groups)
+    .map(name => ({ name, role: roleFor(name), list: groups[name].slice().sort((a,b)=> new Date(b.date) - new Date(a.date)) }))
+    .filter(p => p.list.length > 0)
+    .sort((a,b) => b.list.length - a.list.length);
+
+  if(withViolations.length === 0){
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(11);
+    pdf.text('No violations logged.', marginLeft, y);
+  } else {
+    withViolations.forEach(person => {
+      newPageIfNeeded(18);
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      const flagStr = person.list.length >= 5 ? '  [FLAGGED — TALK TO THEM]' : '';
+      pdf.text(person.name + flagStr, marginLeft, y);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9);
+      pdf.setTextColor(110, 110, 110);
+      const countLabel = person.list.length + (person.list.length === 1 ? ' violation' : ' violations');
+      pdf.text(person.role + '  \u00b7  ' + countLabel, pageWidth - marginRight, y, { align: 'right' });
+      y += 6;
+
+      person.list.forEach(inc => {
+        newPageIfNeeded(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(9.5);
+        pdf.setTextColor(30, 30, 30);
+        const dateStr = formatDate(inc.date);
+        pdf.text(dateStr, marginLeft + 2, y);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(inc.type, marginLeft + 32, y);
+        y += 5;
+        if(inc.note){
+          pdf.setFontSize(8.5);
+          pdf.setTextColor(120, 120, 120);
+          const noteLines = pdf.splitTextToSize(inc.note, usableWidth - 34);
+          noteLines.forEach(line => {
+            newPageIfNeeded(5);
+            pdf.text(line, marginLeft + 34, y);
+            y += 4.5;
+          });
+        }
+      });
+      y += 5;
+      pdf.setDrawColor(230, 230, 230);
+      pdf.line(marginLeft, y - 2, pageWidth - marginRight, y - 2);
+    });
+  }
+
+  const filename = 'MCIS-Attendance-Violations-' + new Date().toISOString().slice(0,10) + '.pdf';
+  pdf.save(filename);
+}
+
+document.getElementById('downloadReportBtn').addEventListener('click', generateReport);
 
 function render(){
   const groups = groupByName();
