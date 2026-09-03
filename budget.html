@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BillWise</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#F5F6F0;
+    --surface:#FFFFFF;
+    --surface-2:#ECEDE3;
+    --ink:#1E2A22;
+    --ink-soft:#5C6B60;
+    --ink-faint:#8B978C;
+    --border:#DCDACB;
+    --primary:#1B5E4F;
+    --primary-strong:#123F35;
+    --primary-soft:#E3EFE8;
+    --amber:#B4661E;
+    --amber-soft:#F6E9D8;
+    --red:#A3352A;
+    --red-soft:#F5E1DE;
+    --paid:#2E7D5B;
+    --paid-soft:#E1F0E7;
+    --shadow: 0 1px 2px rgba(30,42,34,0.06), 0 6px 20px rgba(30,42,34,0.05);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#10150F;
+      --surface:#1A211C;
+      --surface-2:#212921;
+      --ink:#ECEFEA;
+      --ink-soft:#A2AFA6;
+      --ink-faint:#718075;
+      --border:#2B342D;
+      --primary:#5FBC9C;
+      --primary-strong:#84CEB2;
+      --primary-soft:#1C3A31;
+      --amber:#E0A34F;
+      --amber-soft:#3A2C18;
+      --red:#E2695A;
+      --red-soft:#3A211E;
+      --paid:#5FBC9C;
+      --paid-soft:#1B3327;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.25);
+    }
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Source Sans 3', system-ui, -apple-system, sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{
+    font-family:'Fraunces', Georgia, serif;
+    color:var(--ink);
+    text-wrap:balance;
+    margin:0;
+  }
+  .mono{font-family:'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;}
+  a{color:inherit;}
+  ::selection{background:var(--primary-soft);}
+  :focus-visible{outline:2px solid var(--primary); outline-offset:2px;}
+
+  #app-root{
+    max-width:1040px;
+    margin:0 auto;
+    padding:28px 20px 64px;
+  }
+
+  .header{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:16px;
+    margin-bottom:22px;
+  }
+  .brand{display:flex; flex-direction:column; gap:4px;}
+  .brand h1{font-size:30px; font-weight:600; letter-spacing:-0.01em;}
+  .brand .tagline{color:var(--ink-soft); font-size:13.5px;}
+  .household{
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  .household-label{
+    font-size:11.5px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--ink-faint);
+    margin-right:2px;
+  }
+  .chip{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:100px;
+    padding:5px 10px 5px 12px;
+    font-size:13px;
+    color:var(--ink);
+  }
+  .chip button{
+    background:none;border:none;color:var(--ink-faint);cursor:pointer;
+    font-size:14px; line-height:1; padding:2px; border-radius:50%;
+  }
+  .chip button:hover{color:var(--red);}
+  .add-person-form{display:inline-flex; gap:6px;}
+  .add-person-form input{width:110px;}
+
+  input[type=text], input[type=number], input[type=date], select{
+    font-family:inherit;
+    font-size:13.5px;
+    color:var(--ink);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:7px;
+    padding:6px 9px;
+  }
+  input:focus, select:focus{border-color:var(--primary);}
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    font-size:13.5px;
+    font-weight:600;
+    padding:7px 14px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .btn:hover{border-color:var(--primary);}
+  .btn-primary{background:var(--primary); border-color:var(--primary); color:#fff;}
+  .btn-primary:hover{background:var(--primary-strong); border-color:var(--primary-strong);}
+  .btn-ghost{background:none; border-color:transparent; color:var(--ink-soft); padding:6px 8px;}
+  .btn-ghost:hover{color:var(--red); border-color:transparent;}
+  .btn-sm{font-size:12.5px; padding:5px 10px;}
+
+  .sync-banner{
+    display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap;
+    border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:13px;
+    background:var(--red-soft); color:var(--red); border:1px solid var(--red);
+  }
+  .sync-banner button{flex-shrink:0;}
+
+  .month-nav{
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    padding:10px 16px; margin-bottom:20px; box-shadow:var(--shadow);
+  }
+  .month-nav button{
+    background:none; border:1px solid var(--border); color:var(--ink-soft);
+    width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:15px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .month-nav button:hover{border-color:var(--primary); color:var(--primary);}
+  .month-nav .label{font-family:'Fraunces', serif; font-size:17px; font-weight:600; min-width:200px; text-align:center;}
+  .today-link{font-size:12px; color:var(--primary); text-decoration:underline; cursor:pointer; background:none; border:none; padding:0;}
+
+  .reminders{
+    border-radius:12px; padding:16px 18px; margin-bottom:22px;
+    background:var(--surface); border:1px solid var(--border); box-shadow:var(--shadow);
+  }
+  .reminders.has-overdue{border-left:4px solid var(--red);}
+  .reminders.has-soon{border-left:4px solid var(--amber);}
+  .reminders.clear{border-left:4px solid var(--paid);}
+  .reminders h2{font-size:15px; font-weight:600; margin-bottom:2px;}
+  .reminders .sub{color:var(--ink-soft); font-size:13px; margin-bottom:10px;}
+  .reminder-list{display:flex; flex-direction:column; gap:6px;}
+  .reminder-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:8px 10px; border-radius:8px; background:var(--surface-2); flex-wrap:wrap;
+  }
+  .reminder-row .info{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .reminder-row .name{font-weight:600;}
+  .reminder-row .when{font-size:12.5px;}
+  .reminder-row.overdue .when{color:var(--red);}
+  .reminder-row.soon .when{color:var(--amber);}
+  .clear-msg{color:var(--paid); font-weight:600; font-size:14px;}
+
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:22px;}
+  .stat{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow);}
+  .stat .k{font-size:11.5px; text-transform:uppercase; letter-spacing:0.06em; color:var(--ink-faint); margin-bottom:6px;}
+  .stat .v{font-family:'IBM Plex Mono', monospace; font-size:22px; font-weight:600; font-variant-numeric:tabular-nums;}
+  .stat.leftover .v.positive{color:var(--paid);}
+  .stat.leftover .v.negative{color:var(--red);}
+
+  .section{background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 20px 20px; margin-bottom:20px; box-shadow:var(--shadow);}
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:14px;}
+  .section-head h2{font-size:17px; font-weight:600;}
+  .section-head .hint{font-size:12.5px; color:var(--ink-faint);}
+
+  .example-banner{
+    background:var(--primary-soft); color:var(--primary-strong); border-radius:9px; padding:9px 13px;
+    font-size:13px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;
+  }
+  .example-banner button{flex-shrink:0;}
+
+  .row-grid-head, .bill-row{
+    display:grid;
+    grid-template-columns: 1.7fr 0.9fr 0.85fr 1fr 1.5fr 0.4fr;
+    gap:10px;
+    align-items:center;
+  }
+  .row-grid-head{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-faint);
+    padding:0 4px 8px; border-bottom:1px solid var(--border); margin-bottom:4px;
+  }
+  .bill-row{padding:10px 4px; border-bottom:1px solid var(--border);}
+  .bill-row:last-child{border-bottom:none;}
+  .bill-name-cell{display:flex; flex-direction:column; gap:3px;}
+  .bill-name-cell input[type=text]{font-weight:600; width:100%;}
+  .cat-tag{align-self:flex-start; font-size:11px; color:var(--ink-soft); background:var(--surface-2); border:1px solid var(--border); border-radius:100px; padding:2px 8px;}
+  .due-cell{display:flex; flex-direction:column; gap:2px; font-size:13px;}
+  .due-cell .date{font-family:'IBM Plex Mono', monospace;}
+  .due-cell .day-input{display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--ink-faint);}
+  .due-cell input[type=number]{width:52px;}
+  .amount-cell input{width:96px; font-family:'IBM Plex Mono', monospace;}
+  .amount-cell .default-hint{font-size:11px; color:var(--ink-faint); margin-top:3px;}
+  .status-pill{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; border-radius:100px; padding:4px 10px; width:fit-content;}
+  .status-pill.overdue{background:var(--red-soft); color:var(--red);}
+  .status-pill.soon{background:var(--amber-soft); color:var(--amber);}
+  .status-pill.upcoming{background:var(--surface-2); color:var(--ink-soft);}
+  .status-pill.paid{background:var(--paid-soft); color:var(--paid);}
+  .paid-cell{display:flex; flex-direction:column; gap:6px;}
+  .paid-cell .row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .paid-cell select{font-size:12.5px; padding:4px 7px;}
+  .paid-note{font-size:11.5px; color:var(--ink-faint);}
+  .remove-cell{display:flex; justify-content:flex-end;}
+  .confirm-remove{display:flex; gap:6px; align-items:center;}
+
+  .add-form{
+    display:grid; grid-template-columns: 1.7fr 1fr 0.8fr 0.9fr auto; gap:10px; align-items:end;
+    margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);
+  }
+  .add-form label{display:block; font-size:11px; color:var(--ink-faint); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.04em;}
+  .add-form input{width:100%;}
+
+  .income-row{display:grid; grid-template-columns:1.6fr 1fr auto; gap:10px; align-items:center; padding:9px 4px; border-bottom:1px solid var(--border);}
+  .income-row:last-child{border-bottom:none;}
+  .income-add{display:grid; grid-template-columns:1.6fr 1fr auto; gap:10px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);}
+  .empty-note{color:var(--ink-faint); font-size:13.5px; padding:6px 4px;}
+
+  footer{text-align:center; color:var(--ink-faint); font-size:12.5px; margin-top:26px; line-height:1.6;}
+  footer .sync-ok{color:var(--paid);}
+
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:9px; font-size:13.5px;
+    box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity 0.25s ease, transform 0.25s ease; z-index:100;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-4px);}
+
+  @media (max-width:760px){
+    .stats{grid-template-columns:repeat(2,1fr);}
+    .row-grid-head{display:none;}
+    .bill-row{grid-template-columns:1fr; gap:8px; padding:14px 4px;}
+    .add-form{grid-template-columns:1fr 1fr;}
+    .add-form > div:first-child{grid-column:1/-1;}
+    .income-row, .income-add{grid-template-columns:1fr 1fr;}
+  }
+  @media (prefers-reduced-motion: reduce){ .toast{transition:none;} }
+  .loading-note{padding:60px 20px; text-align:center; color:var(--ink-soft); font-size:14px;}
+</style>
+</head>
+<body>
+<div id="app-root"><div class="loading-note">Loading BillWise…</div></div>
+<div class="toast" id="toast"></div>
+<script>
+  // If the Firebase module below can't even load (network hiccup, a
+  // blocked CDN, offline), fall back to a clear message instead of a
+  // blank page. The module clears this flag as soon as it renders.
+  window.__billwiseLoaded = false;
+  setTimeout(function(){
+    if(!window.__billwiseLoaded){
+      var el = document.getElementById('app-root');
+      if(el) el.innerHTML = '<div class="loading-note">Couldn’t load BillWise — check the internet connection on this device, then reload the page.</div>';
+    }
+  }, 8000);
+</script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, doc, setDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+// Same pattern as attendance.html: a Firebase project dedicated to this
+// app, an open (no-login) Firestore document, realtime sync via
+// onSnapshot. This project (billwise-budget) is separate from the MCIS
+// attendance project, so the two tools' data never mix.
+const firebaseConfig = {
+  apiKey: "AIzaSyCrNpvplx8wJMQZPIM9QKfYz5aqucRNdXY",
+  authDomain: "billwise-budget.firebaseapp.com",
+  projectId: "billwise-budget",
+  storageBucket: "billwise-budget.firebasestorage.app",
+  messagingSenderId: "383785594465",
+  appId: "1:383785594465:web:b1e914660c94151a694420"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const stateDocRef = doc(db, "billwise_budget", "state");
+
+const DEFAULT_STATE = {
+  version: 1, isExample: true, household: ["Roniel"],
+  bills: [
+    {id:"b1",name:"Rent / Mortgage",category:"Housing",dueDay:1,defaultAmount:1450,active:true},
+    {id:"b2",name:"Electric",category:"Utilities",dueDay:8,defaultAmount:145,active:true},
+    {id:"b3",name:"Internet",category:"Utilities",dueDay:12,defaultAmount:70,active:true},
+    {id:"b4",name:"Car Payment",category:"Debt",dueDay:15,defaultAmount:365,active:true},
+    {id:"b5",name:"Phone",category:"Utilities",dueDay:18,defaultAmount:95,active:true},
+    {id:"b6",name:"Car Insurance",category:"Insurance",dueDay:22,defaultAmount:128,active:true}
+  ],
+  months: {}, updatedAt: null
+};
+
+let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+let today = new Date();
+let viewMonth = monthKeyOf(today);
+let pendingRemove = null;
+let connected = null; // null = connecting, true/false once we hear back
+
+/* ---------------- helpers ---------------- */
+function pad2(n){ return n<10 ? '0'+n : ''+n; }
+function monthKeyOf(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1); }
+function partsOf(monthKey){ const p=monthKey.split('-'); return {y:parseInt(p[0],10), m:parseInt(p[1],10)}; }
+function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
+function addMonths(monthKey, delta){ const p=partsOf(monthKey); const d=new Date(p.y, p.m-1+delta, 1); return monthKeyOf(d); }
+function monthLabel(monthKey){ const p=partsOf(monthKey); const d=new Date(p.y, p.m-1, 1); return d.toLocaleDateString('en-US', {month:'long', year:'numeric'}); }
+function dueDateFor(bill, monthKey){
+  const p = partsOf(monthKey);
+  const dim = daysInMonth(p.y, p.m);
+  const day = Math.min(Math.max(parseInt(bill.dueDay,10)||1,1), dim);
+  return new Date(p.y, p.m-1, day);
+}
+function formatDate(d){ return d.toLocaleDateString('en-US', {month:'short', day:'numeric'}); }
+function formatMoney(n){ n = isFinite(n) ? n : 0; return n.toLocaleString('en-US', {style:'currency', currency:'USD'}); }
+function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+function daysBetween(a,b){ return Math.round((startOfDay(a)-startOfDay(b))/86400000); }
+
+function ensureMonth(monthKey){
+  if(!state.months[monthKey]) state.months[monthKey] = {income:[], overrides:{}};
+  if(!state.months[monthKey].income) state.months[monthKey].income = [];
+  if(!state.months[monthKey].overrides) state.months[monthKey].overrides = {};
+  return state.months[monthKey];
+}
+function getOverride(monthKey, billId){ const m=state.months[monthKey]; return (m && m.overrides && m.overrides[billId]) || {}; }
+function effectiveAmount(bill, monthKey){ const o=getOverride(monthKey, bill.id); return (o.amount===undefined||o.amount===null) ? bill.defaultAmount : o.amount; }
+function activeBills(){ return state.bills.filter(b => b.active !== false); }
+function findBill(id){ return state.bills.filter(b => b.id === id)[0]; }
+
+function statusFor(bill, monthKey){
+  const o = getOverride(monthKey, bill.id);
+  if(o.paid) return 'paid';
+  const due = dueDateFor(bill, monthKey);
+  const diff = daysBetween(due, today);
+  if(diff < 0) return 'overdue';
+  if(diff <= 7) return 'soon';
+  return 'upcoming';
+}
+function statusLabel(s){ return {overdue:'Overdue', soon:'Due soon', upcoming:'Upcoming', paid:'Paid'}[s] || s; }
+
+function monthTotals(monthKey){
+  const m = state.months[monthKey];
+  const income = (m && m.income || []).reduce((sum, e) => sum + (parseFloat(e.amount)||0), 0);
+  let bills = 0, paid = 0;
+  activeBills().forEach(b => {
+    const amt = effectiveAmount(b, monthKey);
+    bills += amt;
+    if(statusFor(b, monthKey) === 'paid') paid += amt;
+  });
+  return {income, bills, paid, unpaid: bills-paid, leftover: income-bills};
+}
+
+function collectReminders(){
+  const out = [];
+  [-1,0,1].forEach(delta => {
+    const mk = addMonths(monthKeyOf(today), delta);
+    if(delta === -1 && !state.months[mk]) return;
+    activeBills().forEach(b => {
+      const s = statusFor(b, mk);
+      if(s === 'overdue' || s === 'soon'){
+        out.push({bill:b, monthKey:mk, status:s, due:dueDateFor(b, mk), amount:effectiveAmount(b, mk)});
+      }
+    });
+  });
+  out.sort((a,b) => a.due - b.due);
+  const seen = {};
+  return out.filter(r => {
+    const k = r.bill.id+'|'+r.monthKey;
+    if(seen[k]) return false;
+    seen[k]=true; return true;
+  });
+}
+
+/* ---------------- mutations ---------------- */
+function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function setOverrideField(monthKey, billId, field, value){
+  const m = ensureMonth(monthKey);
+  if(!m.overrides[billId]) m.overrides[billId] = {};
+  m.overrides[billId][field] = value;
+}
+function togglePaid(monthKey, billId, paidBy){
+  const m = ensureMonth(monthKey);
+  const o = m.overrides[billId] || {};
+  const willBePaid = !o.paid;
+  o.paid = willBePaid;
+  o.paidBy = willBePaid ? (paidBy || state.household[0] || null) : (o.paidBy || null);
+  o.paidDate = willBePaid ? (monthKeyOf(today)+'-'+pad2(today.getDate())) : null;
+  m.overrides[billId] = o;
+}
+function setPaidBy(monthKey, billId, name){
+  const m = ensureMonth(monthKey);
+  if(!m.overrides[billId]) m.overrides[billId] = {};
+  m.overrides[billId].paidBy = name;
+}
+function addBill(data){
+  state.bills.push({
+    id: uid('b'), name:data.name||'New bill', category:data.category||'Other',
+    dueDay: Math.min(Math.max(parseInt(data.dueDay,10)||1,1),31),
+    defaultAmount: parseFloat(data.amount)||0, active:true
+  });
+  state.isExample = false;
+}
+function updateBillField(billId, field, value){
+  const b = findBill(billId);
+  if(!b) return;
+  if(field === 'dueDay') value = Math.min(Math.max(parseInt(value,10)||1,1),31);
+  if(field === 'defaultAmount') value = parseFloat(value)||0;
+  b[field] = value;
+  state.isExample = false;
+}
+function removeBill(billId){ state.bills = state.bills.filter(b => b.id !== billId); }
+function addIncome(monthKey, data){
+  const m = ensureMonth(monthKey);
+  m.income.push({id:uid('i'), source:data.source||'Income', amount:parseFloat(data.amount)||0});
+  state.isExample = false;
+}
+function removeIncome(monthKey, incomeId){
+  const m = ensureMonth(monthKey);
+  m.income = m.income.filter(e => e.id !== incomeId);
+}
+function addPerson(name){
+  name = (name||'').trim();
+  if(!name) return;
+  if(state.household.indexOf(name) === -1) state.household.push(name);
+}
+function removePerson(name){ state.household = state.household.filter(n => n !== name); }
+function dismissExampleBanner(){ state.isExample = false; }
+
+/* ---------------- sync with Firestore ---------------- */
+let toastTimer = null;
+function showToast(msg){
+  const el = document.getElementById('toast');
+  if(!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+let applyingRemoteUpdate = false;
+
+onSnapshot(stateDocRef, (snap) => {
+  connected = true;
+  if(snap.exists()){
+    applyingRemoteUpdate = true;
+    state = snap.data();
+    render();
+    applyingRemoteUpdate = false;
+  } else {
+    // First time this app has ever loaded — seed it.
+    setDoc(stateDocRef, DEFAULT_STATE).catch(() => {});
+  }
+}, (err) => {
+  console.error('Sync error', err);
+  connected = false;
+  render();
+});
+
+let persistTimer = null;
+function persist(){
+  if(applyingRemoteUpdate) return; // don't echo back a snapshot we just received
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    state.updatedAt = new Date().toISOString();
+    // Round-trip through JSON to strip any `undefined` values — Firestore
+    // rejects documents containing them.
+    const clean = JSON.parse(JSON.stringify(state));
+    setDoc(stateDocRef, clean).then(() => {
+      connected = true;
+    }).catch((err) => {
+      console.error('Save failed', err);
+      connected = false;
+      showToast('Could not save — check your connection and try again.');
+      render();
+    });
+  }, 250);
+}
+
+function commit(fn){ fn(); render(); persist(); }
+
+/* ---------------- rendering ---------------- */
+const CATEGORY_SUGGESTIONS = ['Housing','Utilities','Insurance','Debt','Subscription','Transportation','Childcare','Other'];
+
+function escapeHtml(s){
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderSyncBanner(){
+  if(connected !== false) return '';
+  return '<div class="sync-banner"><span>Can’t reach the shared budget database right now — changes here won’t be shared until this reconnects.</span>' +
+    '<button class="btn btn-sm" data-action="retry-connect">Retry</button></div>';
+}
+
+function renderHousehold(){
+  const chips = state.household.map(name =>
+    '<span class="chip">'+escapeHtml(name)+
+    ' <button type="button" data-action="remove-person" data-name="'+escapeHtml(name)+'" title="Remove">×</button></span>'
+  ).join('');
+  const addForm = '<form class="add-person-form" data-action="add-person">' +
+      '<input type="text" name="name" placeholder="Add person" maxlength="24" required>' +
+      '<button type="submit" class="btn btn-sm">Add</button></form>';
+  return '<div class="household"><span class="household-label">Household</span>'+chips+addForm+'</div>';
+}
+
+function renderReminders(){
+  const reminders = collectReminders();
+  const overdue = reminders.filter(r => r.status === 'overdue');
+  const soon = reminders.filter(r => r.status === 'soon');
+  const cls = overdue.length ? 'has-overdue' : (soon.length ? 'has-soon' : 'clear');
+  let body;
+  if(!reminders.length){
+    body = '<p class="clear-msg">You’re all caught up — nothing overdue or due in the next 7 days.</p>';
+  } else {
+    body = '<div class="reminder-list">' + reminders.map(r => {
+      const when = r.status === 'overdue'
+        ? ('Was due ' + formatDate(r.due))
+        : ('Due ' + formatDate(r.due) + (daysBetween(r.due, today) === 0 ? ' — today' : ''));
+      return '<div class="reminder-row '+r.status+'">' +
+        '<div class="info"><span class="name">'+escapeHtml(r.bill.name)+'</span>' +
+        '<span class="mono">'+formatMoney(effectiveAmount(r.bill, r.monthKey))+'</span>' +
+        '<span class="when">'+when+'</span></div>' +
+        '<button type="button" class="btn btn-sm" data-action="quick-paid" data-bill="'+r.bill.id+'" data-month="'+r.monthKey+'">Mark paid</button>' +
+        '</div>';
+    }).join('') + '</div>';
+  }
+  return '<div class="reminders '+cls+'"><h2>Reminders</h2>' +
+    '<div class="sub">Overdue and due-soon bills across last, this, and next month.</div>' + body + '</div>';
+}
+
+function renderStats(){
+  const t = monthTotals(viewMonth);
+  const leftoverCls = t.leftover >= 0 ? 'positive' : 'negative';
+  return '<div class="stats">' +
+    '<div class="stat"><div class="k">Income</div><div class="v mono">'+formatMoney(t.income)+'</div></div>' +
+    '<div class="stat"><div class="k">Total bills</div><div class="v mono">'+formatMoney(t.bills)+'</div></div>' +
+    '<div class="stat"><div class="k">Paid so far</div><div class="v mono">'+formatMoney(t.paid)+'</div></div>' +
+    '<div class="stat leftover"><div class="k">Leftover</div><div class="v mono '+leftoverCls+'">'+formatMoney(t.leftover)+'</div></div>' +
+    '</div>';
+}
+
+function renderBillRow(bill){
+  const due = dueDateFor(bill, viewMonth);
+  const status = statusFor(bill, viewMonth);
+  const amount = effectiveAmount(bill, viewMonth);
+  const o = getOverride(viewMonth, bill.id);
+  const hasOverride = (o.amount !== undefined && o.amount !== null && o.amount !== bill.defaultAmount);
+  const householdOptions = state.household.map(n =>
+    '<option value="'+escapeHtml(n)+'"'+(o.paidBy===n?' selected':'')+'>'+escapeHtml(n)+'</option>'
+  ).join('');
+  const confirmOpen = pendingRemove === bill.id;
+
+  return '<div class="bill-row" data-bill="'+bill.id+'">' +
+    '<div class="bill-name-cell">' +
+      '<input type="text" data-field="name" data-bill="'+bill.id+'" value="'+escapeHtml(bill.name)+'" maxlength="40">' +
+      '<input type="text" list="category-suggestions" data-field="category" data-bill="'+bill.id+'" value="'+escapeHtml(bill.category)+'" maxlength="24" class="cat-tag" style="border-radius:100px;">' +
+    '</div>' +
+    '<div class="due-cell">' +
+      '<span class="date">'+formatDate(due)+'</span>' +
+      '<label class="day-input">Day <input type="number" min="1" max="31" data-field="dueDay" data-bill="'+bill.id+'" value="'+bill.dueDay+'"></label>' +
+    '</div>' +
+    '<div><span class="status-pill '+status+'">'+statusLabel(status)+'</span></div>' +
+    '<div class="amount-cell">' +
+      '<input type="number" step="0.01" min="0" class="mono" data-field="amount" data-bill="'+bill.id+'" value="'+amount+'">' +
+      (hasOverride ? '<div class="default-hint">default '+formatMoney(bill.defaultAmount)+'</div>' : '') +
+    '</div>' +
+    '<div class="paid-cell">' +
+      '<div class="row">' +
+        '<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-action="toggle-paid" data-bill="'+bill.id+'" '+(o.paid?'checked':'')+'> Paid</label>' +
+        (state.household.length ? '<select data-action="set-paid-by" data-bill="'+bill.id+'">'+householdOptions+'</select>' : '') +
+      '</div>' +
+      (o.paid && o.paidDate ? '<span class="paid-note">on '+o.paidDate.slice(5)+'</span>' : '') +
+    '</div>' +
+    '<div class="remove-cell">' +
+      (confirmOpen
+        ? '<span class="confirm-remove"><span class="paid-note">Remove?</span><button class="btn btn-sm" data-action="confirm-remove-bill" data-bill="'+bill.id+'">Yes</button><button class="btn btn-ghost btn-sm" data-action="cancel-remove-bill">Cancel</button></span>'
+        : '<button class="btn-ghost" data-action="ask-remove-bill" data-bill="'+bill.id+'" title="Remove bill">✕</button>') +
+    '</div>' +
+  '</div>';
+}
+
+function renderBills(){
+  const bills = activeBills().slice().sort((a,b) => a.dueDay - b.dueDay);
+  const rows = bills.length ? bills.map(renderBillRow).join('') : '<div class="empty-note">No recurring bills yet — add your first one below.</div>';
+  const addForm =
+    '<form class="add-form" data-action="add-bill">' +
+      '<div><label>Bill name</label><input type="text" name="name" required maxlength="40" placeholder="e.g. Water"></div>' +
+      '<div><label>Category</label><input type="text" name="category" list="category-suggestions" maxlength="24" placeholder="Utilities"></div>' +
+      '<div><label>Due day</label><input type="number" name="dueDay" min="1" max="31" value="1" required></div>' +
+      '<div><label>Amount</label><input type="number" name="amount" min="0" step="0.01" required placeholder="0.00"></div>' +
+      '<button type="submit" class="btn btn-primary">Add bill</button>' +
+    '</form>';
+  const datalist = '<datalist id="category-suggestions">' + CATEGORY_SUGGESTIONS.map(c => '<option value="'+c+'">').join('') + '</datalist>';
+  return '<div class="section">' +
+    '<div class="section-head"><h2>Bills — '+monthLabel(viewMonth)+'</h2><span class="hint">Amount edits apply to this month only</span></div>' +
+    '<div class="row-grid-head"><div>Bill</div><div>Due</div><div>Status</div><div>Amount</div><div>Paid</div><div></div></div>' +
+    rows + addForm + datalist +
+  '</div>';
+}
+
+function renderIncome(){
+  const m = state.months[viewMonth];
+  const entries = (m && m.income) || [];
+  const rows = entries.length
+    ? entries.map(e =>
+        '<div class="income-row"><span>'+escapeHtml(e.source)+'</span>' +
+        '<span class="mono">'+formatMoney(e.amount)+'</span>' +
+        '<button class="btn-ghost" data-action="remove-income" data-income="'+e.id+'" title="Remove">✕</button></div>'
+      ).join('')
+    : '<div class="empty-note">No income logged for '+monthLabel(viewMonth)+' yet.</div>';
+  const addForm =
+    '<form class="income-add" data-action="add-income">' +
+      '<input type="text" name="source" placeholder="e.g. Roniel’s paycheck" required maxlength="40">' +
+      '<input type="number" name="amount" placeholder="0.00" min="0" step="0.01" required>' +
+      '<button type="submit" class="btn btn-primary">Add income</button>' +
+    '</form>';
+  return '<div class="section"><div class="section-head"><h2>Income — '+monthLabel(viewMonth)+'</h2></div>' + rows + addForm + '</div>';
+}
+
+function renderExampleBanner(){
+  if(!state.isExample) return '';
+  return '<div class="example-banner"><span>These are example bills to help you get started — edit the names, due days and amounts below, or remove them and add your own.</span>' +
+    '<button class="btn btn-sm" data-action="dismiss-example">Got it</button></div>';
+}
+
+function footerSyncNote(){
+  if(connected === false) return 'Not connected right now.';
+  if(connected === true) return '<span class="sync-ok">Synced live</span>' + (state.updatedAt ? ' — last saved ' + new Date(state.updatedAt).toLocaleString('en-US', {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}) : '');
+  return 'Connecting…';
+}
+
+function render(){
+  window.__billwiseLoaded = true;
+  const html =
+    '<div class="header">' +
+      '<div class="brand"><h1>BillWise</h1><div class="tagline">Shared household bills & budget</div></div>' +
+      renderHousehold() +
+    '</div>' +
+    renderSyncBanner() +
+    '<div class="month-nav">' +
+      '<button type="button" data-action="prev-month" aria-label="Previous month">‹</button>' +
+      '<span class="label">'+monthLabel(viewMonth)+'</span>' +
+      '<button type="button" data-action="next-month" aria-label="Next month">›</button>' +
+    '</div>' +
+    (viewMonth !== monthKeyOf(today) ? '<div style="text-align:center;margin:-12px 0 20px;"><button class="today-link" data-action="go-today">Jump to '+monthLabel(monthKeyOf(today))+'</button></div>' : '') +
+    renderReminders() +
+    renderExampleBanner() +
+    renderStats() +
+    renderBills() +
+    renderIncome() +
+    '<footer>Reminders update automatically whenever this page is open — BillWise doesn’t send texts or emails on its own.<br>' + footerSyncNote() + '</footer>';
+  document.getElementById('app-root').innerHTML = html;
+}
+
+/* ---------------- events ---------------- */
+const root = document.getElementById('app-root');
+
+root.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-action]');
+  if(!t) return;
+  const action = t.getAttribute('data-action');
+  if(action === 'prev-month'){ viewMonth = addMonths(viewMonth, -1); render(); }
+  else if(action === 'next-month'){ viewMonth = addMonths(viewMonth, 1); render(); }
+  else if(action === 'go-today'){ viewMonth = monthKeyOf(today); render(); }
+  else if(action === 'retry-connect'){ connected = null; render(); }
+  else if(action === 'remove-person'){ commit(() => removePerson(t.getAttribute('data-name'))); }
+  else if(action === 'dismiss-example'){ commit(dismissExampleBanner); }
+  else if(action === 'ask-remove-bill'){ pendingRemove = t.getAttribute('data-bill'); render(); }
+  else if(action === 'cancel-remove-bill'){ pendingRemove = null; render(); }
+  else if(action === 'confirm-remove-bill'){ const bid=t.getAttribute('data-bill'); pendingRemove=null; commit(() => removeBill(bid)); }
+  else if(action === 'remove-income'){ const iid=t.getAttribute('data-income'); commit(() => removeIncome(viewMonth, iid)); }
+  else if(action === 'quick-paid'){
+    const bill = t.getAttribute('data-bill'), mk = t.getAttribute('data-month');
+    commit(() => togglePaid(mk, bill, state.household[0]));
+  }
+});
+
+root.addEventListener('change', (e) => {
+  const el = e.target;
+  if(el.matches('[data-action="toggle-paid"]')){
+    const bid = el.getAttribute('data-bill');
+    commit(() => togglePaid(viewMonth, bid, null));
+    return;
+  }
+  if(el.matches('[data-action="set-paid-by"]')){
+    const bid2 = el.getAttribute('data-bill');
+    commit(() => setPaidBy(viewMonth, bid2, el.value));
+    return;
+  }
+  if(el.matches('[data-field]')){
+    const field = el.getAttribute('data-field');
+    const billId = el.getAttribute('data-bill');
+    if(field === 'amount'){
+      commit(() => setOverrideField(viewMonth, billId, 'amount', parseFloat(el.value)||0));
+    } else {
+      commit(() => updateBillField(billId, field, el.value));
+    }
+  }
+});
+
+root.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target;
+  if(form.matches('[data-action="add-person"]')){
+    const name = form.elements['name'].value;
+    commit(() => addPerson(name));
+    form.reset();
+  } else if(form.matches('[data-action="add-bill"]')){
+    const data = { name: form.elements['name'].value, category: form.elements['category'].value || 'Other', dueDay: form.elements['dueDay'].value, amount: form.elements['amount'].value };
+    commit(() => addBill(data));
+  } else if(form.matches('[data-action="add-income"]')){
+    const data2 = { source: form.elements['source'].value, amount: form.elements['amount'].value };
+    commit(() => addIncome(viewMonth, data2));
+  }
+});
+
+render();
+</script>
+</body>
+</html>
