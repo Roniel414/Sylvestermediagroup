@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ice Bag Usage Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F7F9FA;
+    --ink:#122436;
+    --ink-soft:#5A6E7D;
+    --line:#D4DEE3;
+    --ice:#2E86AB;
+    --ice-dark:#236B8A;
+    --ice-pale:#E5F2F7;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .sheet{
+    max-width:640px;
+    margin:0 auto;
+    padding:28px 20px 60px;
+  }
+  header{
+    border-bottom:3px solid var(--ink);
+    padding-bottom:14px;
+    margin-bottom:20px;
+  }
+  header h1{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:700;
+    font-size:32px;
+    margin:0;
+    line-height:1;
+  }
+  header .sub{
+    color:var(--ink-soft);
+    font-size:13.5px;
+    margin-top:4px;
+  }
+  .stats{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:20px;
+  }
+  .stat{
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    padding:14px 16px;
+  }
+  .stat .num{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:700;
+    font-size:30px;
+    color:var(--ice-dark);
+    line-height:1;
+  }
+  .stat .lbl{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin-top:4px;
+  }
+  form.entry{
+    display:flex;
+    gap:8px;
+    margin-bottom:22px;
+    flex-wrap:wrap;
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    padding:14px;
+  }
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    flex:1;
+    min-width:110px;
+  }
+  .field label{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:600;
+    font-size:12.5px;
+    color:var(--ink-soft);
+  }
+  .field input{
+    border:1.5px solid var(--line);
+    border-radius:4px;
+    padding:8px 10px;
+    font-size:14px;
+    font-family:'Inter',sans-serif;
+  }
+  .field input:focus{outline:none;border-color:var(--ice);}
+  .field.grow{flex:2;min-width:140px;}
+  .btn-log{
+    background:var(--ice);
+    color:#fff;
+    border:none;
+    border-radius:4px;
+    padding:0 20px;
+    font-size:14px;
+    font-weight:600;
+    font-family:'Inter',sans-serif;
+    cursor:pointer;
+    align-self:flex-end;
+    height:37px;
+    transition:background .15s;
+  }
+  .btn-log:hover{background:var(--ice-dark);}
+  .log-title{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:600;
+    font-size:16px;
+    color:var(--ink);
+    margin:0 0 10px 2px;
+  }
+  ul.log{
+    list-style:none;
+    margin:0;
+    padding:0;
+    background:#fff;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+  }
+  ul.log li{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:11px 14px;
+    border-bottom:1px solid var(--line);
+    gap:10px;
+  }
+  ul.log li:last-child{border-bottom:none;}
+  .entry-left{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    min-width:0;
+  }
+  .entry-date{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:600;
+    font-size:15px;
+    white-space:nowrap;
+  }
+  .entry-note{
+    color:var(--ink-soft);
+    font-size:13px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .entry-count{
+    background:var(--ice-pale);
+    color:var(--ice-dark);
+    font-weight:700;
+    font-size:14px;
+    padding:3px 10px;
+    border-radius:4px;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+  .del-btn{
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:16px;
+    padding:2px 4px;
+    cursor:pointer;
+    border-radius:3px;
+    flex-shrink:0;
+  }
+  .del-btn:hover{color:#C0392B;background:#FBEAEA;}
+  .empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-style:italic;
+    padding:28px 14px;
+    font-size:14px;
+  }
+  .save-flag{
+    display:block;
+    text-align:right;
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:600;
+    color:var(--ice-dark);
+    font-size:13px;
+    margin-top:8px;
+    opacity:0;
+    transition:opacity .3s;
+  }
+  .save-flag.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <h1>Ice Bag Usage</h1>
+    <div class="sub">Daily count log</div>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="num" id="weekTotal">0</div>
+      <div class="lbl">Bags &mdash; last 7 days</div>
+    </div>
+    <div class="stat">
+      <div class="num" id="allTotal">0</div>
+      <div class="lbl">Bags logged total</div>
+    </div>
+  </div>
+
+  <form class="entry" id="entryForm">
+    <div class="field">
+      <label for="date">Date</label>
+      <input type="date" id="date" required>
+    </div>
+    <div class="field">
+      <label for="count">Bags</label>
+      <input type="number" id="count" min="1" placeholder="0" required>
+    </div>
+    <div class="field grow">
+      <label for="note">Note (optional)</label>
+      <input type="text" id="note" placeholder="Site, crew...">
+    </div>
+    <button type="submit" class="btn-log">+ Log</button>
+  </form>
+
+  <div class="log-title">Recent entries</div>
+  <ul class="log" id="logList"></ul>
+  <span class="save-flag" id="saveFlag">Saved</span>
+</div>
+
+<script>
+const STORAGE_KEY = 'ice-bag-usage-log';
+let entries = [];
+
+function uid(){ return 'e' + Date.now() + Math.random().toString(36).slice(2,7); }
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function loadEntries(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    entries = raw ? JSON.parse(raw) : [];
+  }catch(e){
+    entries = [];
+  }
+  document.getElementById('date').value = todayStr();
+  render();
+}
+
+let saveTimeout;
+function saveEntries(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    flagSaved();
+  }catch(e){
+    console.error('Save failed', e);
+  }
+}
+function flagSaved(){
+  const el = document.getElementById('saveFlag');
+  el.classList.add('show');
+  clearTimeout(flagSaved._t);
+  flagSaved._t = setTimeout(()=> el.classList.remove('show'), 900);
+}
+
+function formatDate(iso){
+  const [y,m,d] = iso.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  return dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+function computeStats(){
+  const now = new Date();
+  const weekAgo = new Date(now);
+  weekAgo.setDate(now.getDate() - 7);
+
+  let weekTotal = 0, allTotal = 0;
+  entries.forEach(e => {
+    const c = parseInt(e.count, 10) || 0;
+    allTotal += c;
+    const [y,m,d] = e.date.split('-').map(Number);
+    const dt = new Date(y, m-1, d);
+    if(dt >= weekAgo && dt <= now) weekTotal += c;
+  });
+  document.getElementById('weekTotal').textContent = weekTotal;
+  document.getElementById('allTotal').textContent = allTotal;
+}
+
+function render(){
+  const list = document.getElementById('logList');
+  computeStats();
+
+  if(entries.length === 0){
+    list.innerHTML = '<li class="empty" style="display:block;">No entries yet &mdash; log today\'s count above.</li>';
+    return;
+  }
+
+  const sorted = [...entries].sort((a,b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+
+  list.innerHTML = sorted.map(e => `
+    <li data-id="${e.id}">
+      <div class="entry-left">
+        <span class="entry-date">${formatDate(e.date)}</span>
+        ${e.note ? `<span class="entry-note">${escapeHtml(e.note)}</span>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="entry-count">${e.count} bags</span>
+        <button class="del-btn" data-del="${e.id}" title="Delete entry">&times;</button>
+      </div>
+    </li>
+  `).join('');
+}
+
+function escapeHtml(str){
+  return String(str ?? '').replace(/[&<>"']/g, m => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[m]));
+}
+
+document.getElementById('entryForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const date = document.getElementById('date').value;
+  const count = document.getElementById('count').value;
+  const note = document.getElementById('note').value.trim();
+  if(!date || !count) return;
+
+  entries.push({ id: uid(), date, count: parseInt(count,10), note, createdAt: Date.now() });
+  saveEntries();
+  render();
+
+  document.getElementById('count').value = '';
+  document.getElementById('note').value = '';
+  document.getElementById('count').focus();
+});
+
+document.getElementById('logList').addEventListener('click', (e) => {
+  const delId = e.target.dataset.del;
+  if(!delId) return;
+  entries = entries.filter(en => en.id !== delId);
+  saveEntries();
+  render();
+});
+
+loadEntries();
+</script>
+</body>
+</html>
