@@ -334,7 +334,7 @@ function setSync(ok, text){
 }
 
 async function fetchEntries(){
-  setSync(true, 'Syncingâ¦');
+  setSync(true, 'Syncing\u2026');
   try{
     const res = await fetch(GVIZ_URL, { cache: 'no-store' });
     const text = await res.text();
@@ -359,10 +359,10 @@ async function fetchEntries(){
       };
     }).filter(e => e.type === 'Received' || e.type === 'Used');
     render();
-    setSync(true, 'Live â synced');
+    setSync(true, 'Live \u2014 synced');
   }catch(err){
     console.error('Sync failed', err);
-    setSync(false, 'Sync failed â retrying');
+    setSync(false, 'Sync failed \u2014 retrying');
   }
 }
 
@@ -417,7 +417,7 @@ function render(){
           </div>
           ${e.note ? `<span class="entry-note">${escapeHtml(e.note)}</span>` : ''}
         </div>
-        <span class="entry-count ${e.type === 'Received' ? 'received' : 'used'}">${e.type === 'Received' ? '+' : 'â'}${e.bags} bags</span>
+        <span class="entry-count ${e.type === 'Received' ? 'received' : 'used'}">${e.type === 'Received' ? '+' : '\u2212'}${e.bags} bags</span>
       </li>
     `).join('');
   }
