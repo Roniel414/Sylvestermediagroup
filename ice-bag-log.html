@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ice Bag Usage Log</title>
+<title>Ice Bag Inventory Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --paper:#F7F9FA;
@@ -15,6 +17,10 @@
     --ice:#2E86AB;
     --ice-dark:#236B8A;
     --ice-pale:#E5F2F7;
+    --good:#1E8E5A;
+    --good-pale:#E4F5EC;
+    --warn:#C0392B;
+    --warn-pale:#FBEAEA;
   }
   *{box-sizing:border-box;}
   body{
@@ -25,7 +31,7 @@
     -webkit-font-smoothing:antialiased;
   }
   .sheet{
-    max-width:640px;
+    max-width:700px;
     margin:0 auto;
     padding:28px 20px 60px;
   }
@@ -33,6 +39,11 @@
     border-bottom:3px solid var(--ink);
     padding-bottom:14px;
     margin-bottom:20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:10px;
+    flex-wrap:wrap;
   }
   header h1{
     font-family:'Barlow Condensed',sans-serif;
@@ -46,6 +57,25 @@
     font-size:13.5px;
     margin-top:4px;
   }
+  .sync-pill{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    background:var(--good-pale);
+    color:var(--good);
+    font-size:12.5px;
+    font-weight:600;
+    padding:5px 10px;
+    border-radius:20px;
+    white-space:nowrap;
+  }
+  .sync-pill .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--good);
+  }
+  .sync-pill.err{ background:var(--warn-pale); color:var(--warn); }
+  .sync-pill.err .dot{ background:var(--warn); }
+
   .stats{
     display:grid;
     grid-template-columns:1fr 1fr;
@@ -58,6 +88,14 @@
     border-radius:6px;
     padding:14px 16px;
   }
+  .stat.onhand{
+    grid-column:1 / -1;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:var(--ice-pale);
+    border-color:var(--ice);
+  }
   .stat .num{
     font-family:'Barlow Condensed',sans-serif;
     font-weight:700;
@@ -65,58 +103,89 @@
     color:var(--ice-dark);
     line-height:1;
   }
+  .stat.onhand .num{ font-size:40px; }
   .stat .lbl{
     font-size:12.5px;
     color:var(--ink-soft);
     margin-top:4px;
   }
-  form.entry{
-    display:flex;
-    gap:8px;
-    margin-bottom:22px;
-    flex-wrap:wrap;
+
+  .card{
     background:#fff;
     border:1.5px solid var(--line);
     border-radius:6px;
-    padding:14px;
+    margin-bottom:20px;
+    overflow:hidden;
   }
-  .field{
+  .card-head{
     display:flex;
-    flex-direction:column;
-    gap:4px;
-    flex:1;
-    min-width:110px;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    user-select:none;
   }
-  .field label{
+  .card-head h2{
     font-family:'Barlow Condensed',sans-serif;
     font-weight:600;
-    font-size:12.5px;
+    font-size:16px;
+    margin:0;
+  }
+  .card-head .chev{
     color:var(--ink-soft);
+    font-size:13px;
+    transition:transform .2s;
   }
-  .field input{
-    border:1.5px solid var(--line);
-    border-radius:4px;
-    padding:8px 10px;
-    font-size:14px;
-    font-family:'Inter',sans-serif;
+  .card-head.open .chev{ transform:rotate(180deg); }
+  .card-body{ padding:0; }
+  .card-body.collapsed{ display:none; }
+  iframe.gform{
+    width:100%;
+    height:900px;
+    border:none;
+    display:block;
   }
-  .field input:focus{outline:none;border-color:var(--ice);}
-  .field.grow{flex:2;min-width:140px;}
-  .btn-log{
+  .btn{
     background:var(--ice);
     color:#fff;
     border:none;
     border-radius:4px;
-    padding:0 20px;
-    font-size:14px;
+    padding:9px 16px;
+    font-size:13.5px;
     font-weight:600;
     font-family:'Inter',sans-serif;
     cursor:pointer;
-    align-self:flex-end;
-    height:37px;
     transition:background .15s;
+    text-decoration:none;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
   }
-  .btn-log:hover{background:var(--ice-dark);}
+  .btn:hover{ background:var(--ice-dark); }
+  .btn.ghost{
+    background:#fff;
+    color:var(--ice-dark);
+    border:1.5px solid var(--line);
+  }
+  .btn.ghost:hover{ background:var(--ice-pale); border-color:var(--ice); }
+
+  .toolbar{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+    padding:14px;
+  }
+  .toolbar select{
+    border:1.5px solid var(--line);
+    border-radius:4px;
+    padding:8px 10px;
+    font-size:13.5px;
+    font-family:'Inter',sans-serif;
+    background:#fff;
+  }
+
   .log-title{
     font-family:'Barlow Condensed',sans-serif;
     font-weight:600;
@@ -144,9 +213,14 @@
   ul.log li:last-child{border-bottom:none;}
   .entry-left{
     display:flex;
-    align-items:baseline;
-    gap:10px;
+    flex-direction:column;
+    gap:2px;
     min-width:0;
+  }
+  .entry-top{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
   }
   .entry-date{
     font-family:'Barlow Condensed',sans-serif;
@@ -154,16 +228,19 @@
     font-size:15px;
     white-space:nowrap;
   }
+  .entry-who{
+    color:var(--ink-soft);
+    font-size:12.5px;
+  }
   .entry-note{
     color:var(--ink-soft);
-    font-size:13px;
+    font-size:12.5px;
     overflow:hidden;
     text-overflow:ellipsis;
     white-space:nowrap;
+    max-width:220px;
   }
   .entry-count{
-    background:var(--ice-pale);
-    color:var(--ice-dark);
     font-weight:700;
     font-size:14px;
     padding:3px 10px;
@@ -171,17 +248,8 @@
     white-space:nowrap;
     flex-shrink:0;
   }
-  .del-btn{
-    background:none;
-    border:none;
-    color:var(--ink-soft);
-    font-size:16px;
-    padding:2px 4px;
-    cursor:pointer;
-    border-radius:3px;
-    flex-shrink:0;
-  }
-  .del-btn:hover{color:#C0392B;background:#FBEAEA;}
+  .entry-count.received{ background:var(--good-pale); color:var(--good); }
+  .entry-count.used{ background:var(--ice-pale); color:var(--ice-dark); }
   .empty{
     text-align:center;
     color:var(--ink-soft);
@@ -189,142 +257,142 @@
     padding:28px 14px;
     font-size:14px;
   }
-  .save-flag{
-    display:block;
-    text-align:right;
-    font-family:'Barlow Condensed',sans-serif;
-    font-weight:600;
-    color:var(--ice-dark);
-    font-size:13px;
+  .foot-links{
+    text-align:center;
     margin-top:8px;
-    opacity:0;
-    transition:opacity .3s;
+    font-size:12.5px;
+    color:var(--ink-soft);
   }
-  .save-flag.show{opacity:1;}
+  .foot-links a{ color:var(--ice-dark); }
 </style>
 </head>
 <body>
 <div class="sheet">
   <header>
-    <h1>Ice Bag Usage</h1>
-    <div class="sub">Daily count log</div>
+    <div>
+      <h1>Ice Bag Inventory</h1>
+      <div class="sub">Shared team log &mdash; everyone sees the same count</div>
+    </div>
+    <span class="sync-pill" id="syncPill"><span class="dot"></span><span id="syncText">Loading&hellip;</span></span>
   </header>
 
   <div class="stats">
-    <div class="stat">
-      <div class="num" id="weekTotal">0</div>
-      <div class="lbl">Bags &mdash; last 7 days</div>
+    <div class="stat onhand">
+      <div>
+        <div class="num" id="onHand">&ndash;</div>
+        <div class="lbl">Bags on hand right now</div>
+      </div>
     </div>
     <div class="stat">
-      <div class="num" id="allTotal">0</div>
-      <div class="lbl">Bags logged total</div>
+      <div class="num" id="receivedTotal">&ndash;</div>
+      <div class="lbl">Received &mdash; all time</div>
+    </div>
+    <div class="stat">
+      <div class="num" id="usedWeek">&ndash;</div>
+      <div class="lbl">Used &mdash; last 7 days</div>
     </div>
   </div>
 
-  <form class="entry" id="entryForm">
-    <div class="field">
-      <label for="date">Date</label>
-      <input type="date" id="date" required>
+  <div class="card">
+    <div class="card-head open" id="logToggle">
+      <h2>+ Log bags received or used</h2>
+      <span class="chev">&#9650;</span>
     </div>
-    <div class="field">
-      <label for="count">Bags</label>
-      <input type="number" id="count" min="1" placeholder="0" required>
+    <div class="card-body" id="logBody">
+      <iframe class="gform" src="https://docs.google.com/forms/d/e/1FAIpQLSc4ZUPz4qio8Sawkry-CpSIHSpJnNGeUCo0Z1KRa_aMF4H2Og/viewform?embedded=true">Loading form&hellip;</iframe>
     </div>
-    <div class="field grow">
-      <label for="note">Note (optional)</label>
-      <input type="text" id="note" placeholder="Site, crew...">
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <select id="reportMonth"></select>
+      <button class="btn" id="pdfBtn">&#8595; Download PDF report</button>
+      <button class="btn ghost" id="refreshBtn">&#8635; Refresh</button>
     </div>
-    <button type="submit" class="btn-log">+ Log</button>
-  </form>
+  </div>
 
   <div class="log-title">Recent entries</div>
-  <ul class="log" id="logList"></ul>
-  <span class="save-flag" id="saveFlag">Saved</span>
+  <ul class="log" id="logList"><li class="empty">Loading&hellip;</li></ul>
+
+  <div class="foot-links">
+    New entries can take up to ~30 seconds to appear here after submitting.<br>
+    <a href="https://docs.google.com/spreadsheets/d/1jWt6TSs0JccbF7bcoZNlGxgc1XW2H0hC4Y3TxyNrWIw/edit?usp=sharing" target="_blank" rel="noopener">View full spreadsheet &#8599;</a>
+  </div>
 </div>
 
 <script>
-const STORAGE_KEY = 'ice-bag-usage-log';
-let entries = [];
+const SHEET_ID = '1jWt6TSs0JccbF7bcoZNlGxgc1XW2H0hC4Y3TxyNrWIw';
+const SHEET_NAME = 'Form Responses 1';
+const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
-function uid(){ return 'e' + Date.now() + Math.random().toString(36).slice(2,7); }
-function todayStr(){
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+let entries = []; // {timestamp, type, date, bags, name, note}
+
+function setSync(ok, text){
+  const pill = document.getElementById('syncPill');
+  pill.classList.toggle('err', !ok);
+  document.getElementById('syncText').textContent = text;
 }
 
-function loadEntries(){
+async function fetchEntries(){
+  setSync(true, 'Syncingâ¦');
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    entries = raw ? JSON.parse(raw) : [];
-  }catch(e){
-    entries = [];
+    const res = await fetch(GVIZ_URL, { cache: 'no-store' });
+    const text = await res.text();
+    const match = text.match(/setResponse\(([\s\S]*)\);?\s*$/);
+    if(!match) throw new Error('Unexpected response format');
+    const data = JSON.parse(match[1]);
+    const rows = data.table.rows || [];
+    entries = rows.map(r => {
+      const c = r.c;
+      const get = i => (c[i] && c[i].v != null) ? c[i].v : '';
+      let dateVal = get(2);
+      // gviz dates come back like "Date(2026,8,15)" in some cases via .f, prefer formatted string
+      let dateStr = (c[2] && c[2].f) ? c[2].f : String(dateVal);
+      return {
+        timestamp: (c[0] && c[0].f) ? c[0].f : String(get(0)),
+        type: String(get(1)),
+        date: dateStr,
+        dateRaw: parseGvizDate(get(2), c[2] && c[2].f),
+        bags: parseFloat(get(3)) || 0,
+        name: String(get(4)),
+        note: String(get(5))
+      };
+    }).filter(e => e.type === 'Received' || e.type === 'Used');
+    render();
+    setSync(true, 'Live â synced');
+  }catch(err){
+    console.error('Sync failed', err);
+    setSync(false, 'Sync failed â retrying');
   }
-  document.getElementById('date').value = todayStr();
-  render();
 }
 
-let saveTimeout;
-function saveEntries(){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    flagSaved();
-  }catch(e){
-    console.error('Save failed', e);
+function parseGvizDate(v, formatted){
+  // v may be like "Date(2026,8,15)" string or already formatted
+  if(typeof v === 'string'){
+    const m = v.match(/Date\((\d+),(\d+),(\d+)/);
+    if(m) return new Date(parseInt(m[1]), parseInt(m[2]), parseInt(m[3]));
   }
-}
-function flagSaved(){
-  const el = document.getElementById('saveFlag');
-  el.classList.add('show');
-  clearTimeout(flagSaved._t);
-  flagSaved._t = setTimeout(()=> el.classList.remove('show'), 900);
-}
-
-function formatDate(iso){
-  const [y,m,d] = iso.split('-').map(Number);
-  const dt = new Date(y, m-1, d);
-  return dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+  if(formatted){
+    const d = new Date(formatted);
+    if(!isNaN(d)) return d;
+  }
+  return null;
 }
 
 function computeStats(){
+  let onHand = 0, receivedTotal = 0, usedWeek = 0;
   const now = new Date();
-  const weekAgo = new Date(now);
-  weekAgo.setDate(now.getDate() - 7);
-
-  let weekTotal = 0, allTotal = 0;
+  const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
   entries.forEach(e => {
-    const c = parseInt(e.count, 10) || 0;
-    allTotal += c;
-    const [y,m,d] = e.date.split('-').map(Number);
-    const dt = new Date(y, m-1, d);
-    if(dt >= weekAgo && dt <= now) weekTotal += c;
+    if(e.type === 'Received'){ onHand += e.bags; receivedTotal += e.bags; }
+    else if(e.type === 'Used'){
+      onHand -= e.bags;
+      if(e.dateRaw && e.dateRaw >= weekAgo && e.dateRaw <= now) usedWeek += e.bags;
+    }
   });
-  document.getElementById('weekTotal').textContent = weekTotal;
-  document.getElementById('allTotal').textContent = allTotal;
-}
-
-function render(){
-  const list = document.getElementById('logList');
-  computeStats();
-
-  if(entries.length === 0){
-    list.innerHTML = '<li class="empty" style="display:block;">No entries yet &mdash; log today\'s count above.</li>';
-    return;
-  }
-
-  const sorted = [...entries].sort((a,b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
-
-  list.innerHTML = sorted.map(e => `
-    <li data-id="${e.id}">
-      <div class="entry-left">
-        <span class="entry-date">${formatDate(e.date)}</span>
-        ${e.note ? `<span class="entry-note">${escapeHtml(e.note)}</span>` : ''}
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span class="entry-count">${e.count} bags</span>
-        <button class="del-btn" data-del="${e.id}" title="Delete entry">&times;</button>
-      </div>
-    </li>
-  `).join('');
+  document.getElementById('onHand').textContent = onHand;
+  document.getElementById('receivedTotal').textContent = receivedTotal;
+  document.getElementById('usedWeek').textContent = usedWeek;
 }
 
 function escapeHtml(str){
@@ -333,31 +401,138 @@ function escapeHtml(str){
   }[m]));
 }
 
-document.getElementById('entryForm').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const date = document.getElementById('date').value;
-  const count = document.getElementById('count').value;
-  const note = document.getElementById('note').value.trim();
-  if(!date || !count) return;
+function render(){
+  computeStats();
+  const list = document.getElementById('logList');
+  if(entries.length === 0){
+    list.innerHTML = '<li class="empty">No entries yet &mdash; log the first one above.</li>';
+  } else {
+    const sorted = [...entries].sort((a,b) => (b.dateRaw||0) - (a.dateRaw||0));
+    list.innerHTML = sorted.slice(0, 40).map(e => `
+      <li>
+        <div class="entry-left">
+          <div class="entry-top">
+            <span class="entry-date">${escapeHtml(e.date)}</span>
+            ${e.name ? `<span class="entry-who">${escapeHtml(e.name)}</span>` : ''}
+          </div>
+          ${e.note ? `<span class="entry-note">${escapeHtml(e.note)}</span>` : ''}
+        </div>
+        <span class="entry-count ${e.type === 'Received' ? 'received' : 'used'}">${e.type === 'Received' ? '+' : 'â'}${e.bags} bags</span>
+      </li>
+    `).join('');
+  }
+  populateMonths();
+}
 
-  entries.push({ id: uid(), date, count: parseInt(count,10), note, createdAt: Date.now() });
-  saveEntries();
-  render();
+function monthKey(d){
+  if(!d) return null;
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function monthLabel(key){
+  const [y,m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString('en-US', { month:'long', year:'numeric' });
+}
 
-  document.getElementById('count').value = '';
-  document.getElementById('note').value = '';
-  document.getElementById('count').focus();
+function populateMonths(){
+  const sel = document.getElementById('reportMonth');
+  const current = sel.value;
+  const keys = new Set();
+  entries.forEach(e => { const k = monthKey(e.dateRaw); if(k) keys.add(k); });
+  const sortedKeys = [...keys].sort().reverse();
+  sel.innerHTML = '<option value="all">All time</option>' +
+    sortedKeys.map(k => `<option value="${k}">${monthLabel(k)}</option>`).join('');
+  if(current && (current === 'all' || keys.has(current))) sel.value = current;
+}
+
+function buildPdf(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const monthSel = document.getElementById('reportMonth').value;
+  const filtered = monthSel === 'all'
+    ? entries
+    : entries.filter(e => monthKey(e.dateRaw) === monthSel);
+
+  const title = 'Ice Bag Inventory Report';
+  const subtitle = monthSel === 'all' ? 'All time' : monthLabel(monthSel);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(title, 14, 18);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text(subtitle, 14, 25);
+  doc.setFontSize(9);
+  doc.setTextColor(90, 110, 125);
+  doc.text('Generated ' + new Date().toLocaleString('en-US'), 14, 31);
+  doc.setTextColor(18, 36, 54);
+
+  const received = filtered.filter(e => e.type === 'Received').reduce((s,e)=>s+e.bags,0);
+  const used = filtered.filter(e => e.type === 'Used').reduce((s,e)=>s+e.bags,0);
+  const onHandAsOf = entries.reduce((bal,e)=>{
+    if(monthSel !== 'all'){
+      const k = monthKey(e.dateRaw);
+      if(k && k > monthSel) return bal;
+    }
+    return bal + (e.type === 'Received' ? e.bags : -e.bags);
+  }, 0);
+
+  doc.autoTable({
+    startY: 37,
+    head: [['Received', 'Used', 'Net', 'On hand as of period end']],
+    body: [[received, used, received - used, onHandAsOf]],
+    theme: 'grid',
+    headStyles: { fillColor: [46, 134, 171] },
+    styles: { fontSize: 10 }
+  });
+
+  const byPerson = {};
+  filtered.forEach(e => {
+    const name = e.name || 'Unspecified';
+    if(!byPerson[name]) byPerson[name] = { received: 0, used: 0 };
+    if(e.type === 'Received') byPerson[name].received += e.bags;
+    else byPerson[name].used += e.bags;
+  });
+  const personRows = Object.keys(byPerson).sort().map(name => [
+    name, byPerson[name].received, byPerson[name].used, byPerson[name].received - byPerson[name].used
+  ]);
+
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 10,
+    head: [['By person', 'Received', 'Used', 'Net']],
+    body: personRows.length ? personRows : [['No entries in this period', '', '', '']],
+    theme: 'grid',
+    headStyles: { fillColor: [46, 134, 171] },
+    styles: { fontSize: 10 }
+  });
+
+  const entryRows = [...filtered]
+    .sort((a,b) => (a.dateRaw||0) - (b.dateRaw||0))
+    .map(e => [e.date, e.type, e.bags, e.name || '', e.note || '']);
+
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 10,
+    head: [['Date', 'Type', 'Bags', 'Logged by', 'Note']],
+    body: entryRows.length ? entryRows : [['No entries in this period', '', '', '', '']],
+    theme: 'striped',
+    headStyles: { fillColor: [46, 134, 171] },
+    styles: { fontSize: 9 }
+  });
+
+  const fname = 'ice-bag-report-' + (monthSel === 'all' ? 'all-time' : monthSel) + '.pdf';
+  doc.save(fname);
+}
+
+document.getElementById('logToggle').addEventListener('click', () => {
+  const head = document.getElementById('logToggle');
+  const body = document.getElementById('logBody');
+  head.classList.toggle('open');
+  body.classList.toggle('collapsed');
 });
+document.getElementById('pdfBtn').addEventListener('click', buildPdf);
+document.getElementById('refreshBtn').addEventListener('click', fetchEntries);
 
-document.getElementById('logList').addEventListener('click', (e) => {
-  const delId = e.target.dataset.del;
-  if(!delId) return;
-  entries = entries.filter(en => en.id !== delId);
-  saveEntries();
-  render();
-});
-
-loadEntries();
+fetchEntries();
+setInterval(fetchEntries, 30000);
 </script>
 </body>
 </html>
