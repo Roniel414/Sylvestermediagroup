@@ -21,6 +21,9 @@
     --good-pale:#E4F5EC;
     --warn:#C0392B;
     --warn-pale:#FBEAEA;
+    --adjust:#B8860B;
+    --adjust-dark:#8C6508;
+    --adjust-pale:#F7EFDD;
   }
   *{box-sizing:border-box;}
   body{
@@ -240,6 +243,12 @@
     white-space:nowrap;
     max-width:220px;
   }
+  .entry-right{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex-shrink:0;
+  }
   .entry-count{
     font-weight:700;
     font-size:14px;
@@ -250,6 +259,20 @@
   }
   .entry-count.received{ background:var(--good-pale); color:var(--good); }
   .entry-count.used{ background:var(--ice-pale); color:var(--ice-dark); }
+  .entry-count.adjust{ background:var(--adjust-pale); color:var(--adjust-dark); }
+  .entry-del{
+    background:none;
+    border:none;
+    color:var(--warn);
+    cursor:pointer;
+    font-size:15px;
+    line-height:1;
+    padding:5px 7px;
+    border-radius:4px;
+    flex-shrink:0;
+  }
+  .entry-del:hover{ background:var(--warn-pale); }
+  .entry-del:disabled{ opacity:.45; cursor:default; }
   .empty{
     text-align:center;
     color:var(--ink-soft);
@@ -295,7 +318,7 @@
 
   <div class="card">
     <div class="card-head open" id="logToggle">
-      <h2>+ Log bags received or used</h2>
+      <h2>+ Log bags received, used, or reset the count</h2>
       <span class="chev">&#9650;</span>
     </div>
     <div class="card-body" id="logBody">
@@ -313,6 +336,7 @@
 
   <div class="log-title">Recent entries</div>
   <ul class="log" id="logList"><li class="empty">Loading&hellip;</li></ul>
+  <div class="foot-links" style="margin-top:6px;">Tap the trash icon on an entry to delete it (PIN required).</div>
 
   <div class="foot-links">
     New entries can take up to ~30 seconds to appear here after submitting.<br>
@@ -324,6 +348,7 @@
 const SHEET_ID = '1jWt6TSs0JccbF7bcoZNlGxgc1XW2H0hC4Y3TxyNrWIw';
 const SHEET_NAME = 'Form Responses 1';
 const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+const DELETE_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzTIhl7ANbKbkMghxUoufEJ_t53DnmAuDnMrB-F2qUMzdExcdPMejZBAjgHkSQdab8g/exec';
 
 let entries = []; // {timestamp, type, date, bags, name, note}
 
@@ -357,7 +382,7 @@ async function fetchEntries(){
         name: String(get(4)),
         note: String(get(5))
       };
-    }).filter(e => e.type === 'Received' || e.type === 'Used');
+    }).filter(e => e.type === 'Received' || e.type === 'Used' || e.type === 'Adjustment');
     render();
     setSync(true, 'Live \u2014 synced');
   }catch(err){
@@ -379,18 +404,45 @@ function parseGvizDate(v, formatted){
   return null;
 }
 
+function monthKey(d){
+  if(!d) return null;
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function monthLabel(key){
+  const [y,m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString('en-US', { month:'long', year:'numeric' });
+}
+
+// Computes the on-hand balance, honoring the most recent Adjustment (reset) entry
+// at or before the given cutoff month-key. Pass null for "right now" / all time.
+function onHandAsOf(cutoffMonthKey){
+  const inRange = e => cutoffMonthKey == null || !e.dateRaw || monthKey(e.dateRaw) <= cutoffMonthKey;
+  const relevant = entries.filter(inRange).sort((a,b) => (a.dateRaw||0) - (b.dateRaw||0));
+  let lastAdjustIdx = -1;
+  for(let i = relevant.length - 1; i >= 0; i--){
+    if(relevant[i].type === 'Adjustment'){ lastAdjustIdx = i; break; }
+  }
+  let bal = lastAdjustIdx >= 0 ? relevant[lastAdjustIdx].bags : 0;
+  const start = lastAdjustIdx >= 0 ? lastAdjustIdx + 1 : 0;
+  for(let i = start; i < relevant.length; i++){
+    const e = relevant[i];
+    if(e.type === 'Received') bal += e.bags;
+    else if(e.type === 'Used') bal -= e.bags;
+  }
+  return bal;
+}
+
 function computeStats(){
-  let onHand = 0, receivedTotal = 0, usedWeek = 0;
+  let receivedTotal = 0, usedWeek = 0;
   const now = new Date();
   const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
   entries.forEach(e => {
-    if(e.type === 'Received'){ onHand += e.bags; receivedTotal += e.bags; }
+    if(e.type === 'Received'){ receivedTotal += e.bags; }
     else if(e.type === 'Used'){
-      onHand -= e.bags;
       if(e.dateRaw && e.dateRaw >= weekAgo && e.dateRaw <= now) usedWeek += e.bags;
     }
   });
-  document.getElementById('onHand').textContent = onHand;
+  document.getElementById('onHand').textContent = onHandAsOf(null);
   document.getElementById('receivedTotal').textContent = receivedTotal;
   document.getElementById('usedWeek').textContent = usedWeek;
 }
@@ -408,7 +460,14 @@ function render(){
     list.innerHTML = '<li class="empty">No entries yet &mdash; log the first one above.</li>';
   } else {
     const sorted = [...entries].sort((a,b) => (b.dateRaw||0) - (a.dateRaw||0));
-    list.innerHTML = sorted.slice(0, 40).map(e => `
+    list.innerHTML = sorted.slice(0, 40).map(e => {
+      let countHtml;
+      if(e.type === 'Adjustment'){
+        countHtml = `<span class="entry-count adjust">Reset to ${e.bags} bags</span>`;
+      } else {
+        countHtml = `<span class="entry-count ${e.type === 'Received' ? 'received' : 'used'}">${e.type === 'Received' ? '+' : '\u2212'}${e.bags} bags</span>`;
+      }
+      return `
       <li>
         <div class="entry-left">
           <div class="entry-top">
@@ -417,20 +476,15 @@ function render(){
           </div>
           ${e.note ? `<span class="entry-note">${escapeHtml(e.note)}</span>` : ''}
         </div>
-        <span class="entry-count ${e.type === 'Received' ? 'received' : 'used'}">${e.type === 'Received' ? '+' : '\u2212'}${e.bags} bags</span>
+        <div class="entry-right">
+          ${countHtml}
+          <button class="entry-del" data-ts="${escapeHtml(e.timestamp)}" title="Delete this entry">&#128465;</button>
+        </div>
       </li>
-    `).join('');
+    `;
+    }).join('');
   }
   populateMonths();
-}
-
-function monthKey(d){
-  if(!d) return null;
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-}
-function monthLabel(key){
-  const [y,m] = key.split('-').map(Number);
-  return new Date(y, m-1, 1).toLocaleDateString('en-US', { month:'long', year:'numeric' });
 }
 
 function populateMonths(){
@@ -442,6 +496,40 @@ function populateMonths(){
   sel.innerHTML = '<option value="all">All time</option>' +
     sortedKeys.map(k => `<option value="${k}">${monthLabel(k)}</option>`).join('');
   if(current && (current === 'all' || keys.has(current))) sel.value = current;
+}
+
+async function deleteEntry(timestamp, btn){
+  const pin = window.prompt('Enter the 4-digit PIN to delete this entry:');
+  if(pin === null) return; // cancelled
+  if(!pin.trim()){ alert('No PIN entered \u2014 entry not deleted.'); return; }
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = '\u2026';
+  try{
+    const res = await fetch(DELETE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ pin: pin.trim(), timestamp })
+    });
+    const result = await res.json();
+    if(result.ok){
+      await fetchEntries();
+      return;
+    } else if(result.error === 'wrong_pin'){
+      alert('Wrong PIN \u2014 entry not deleted.');
+    } else if(result.error === 'not_found'){
+      alert('Could not find that entry \u2014 it may already be gone. Refreshing the list.');
+      await fetchEntries();
+      return;
+    } else {
+      alert('Delete failed: ' + (result.error || 'unknown error'));
+    }
+  }catch(err){
+    console.error('Delete failed', err);
+    alert('Delete failed \u2014 check your connection and try again.');
+  }
+  btn.disabled = false;
+  btn.innerHTML = original;
 }
 
 function buildPdf(){
@@ -468,18 +556,12 @@ function buildPdf(){
 
   const received = filtered.filter(e => e.type === 'Received').reduce((s,e)=>s+e.bags,0);
   const used = filtered.filter(e => e.type === 'Used').reduce((s,e)=>s+e.bags,0);
-  const onHandAsOf = entries.reduce((bal,e)=>{
-    if(monthSel !== 'all'){
-      const k = monthKey(e.dateRaw);
-      if(k && k > monthSel) return bal;
-    }
-    return bal + (e.type === 'Received' ? e.bags : -e.bags);
-  }, 0);
+  const onHandBalance = onHandAsOf(monthSel === 'all' ? null : monthSel);
 
   doc.autoTable({
     startY: 37,
     head: [['Received', 'Used', 'Net', 'On hand as of period end']],
-    body: [[received, used, received - used, onHandAsOf]],
+    body: [[received, used, received - used, onHandBalance]],
     theme: 'grid',
     headStyles: { fillColor: [46, 134, 171] },
     styles: { fontSize: 10 }
@@ -487,6 +569,7 @@ function buildPdf(){
 
   const byPerson = {};
   filtered.forEach(e => {
+    if(e.type === 'Adjustment') return; // resets aren't a received/used tally
     const name = e.name || 'Unspecified';
     if(!byPerson[name]) byPerson[name] = { received: 0, used: 0 };
     if(e.type === 'Received') byPerson[name].received += e.bags;
@@ -530,6 +613,11 @@ document.getElementById('logToggle').addEventListener('click', () => {
 });
 document.getElementById('pdfBtn').addEventListener('click', buildPdf);
 document.getElementById('refreshBtn').addEventListener('click', fetchEntries);
+document.getElementById('logList').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.entry-del');
+  if(!btn) return;
+  deleteEntry(btn.dataset.ts, btn);
+});
 
 fetchEntries();
 setInterval(fetchEntries, 30000);
