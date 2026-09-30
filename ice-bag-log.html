@@ -382,7 +382,7 @@ async function fetchEntries(){
         name: String(get(4)),
         note: String(get(5))
       };
-    }).filter(e => e.type === 'Received' || e.type === 'Used' || e.type === 'Adjustment');
+    }).filter(e => e.type === 'Received' || e.type === 'Used' || e.type.startsWith('Adjustment'));
     render();
     setSync(true, 'Live \u2014 synced');
   }catch(err){
@@ -420,7 +420,7 @@ function onHandAsOf(cutoffMonthKey){
   const relevant = entries.filter(inRange).sort((a,b) => (a.dateRaw||0) - (b.dateRaw||0));
   let lastAdjustIdx = -1;
   for(let i = relevant.length - 1; i >= 0; i--){
-    if(relevant[i].type === 'Adjustment'){ lastAdjustIdx = i; break; }
+    if(relevant[i].type.startsWith('Adjustment')){ lastAdjustIdx = i; break; }
   }
   let bal = lastAdjustIdx >= 0 ? relevant[lastAdjustIdx].bags : 0;
   const start = lastAdjustIdx >= 0 ? lastAdjustIdx + 1 : 0;
@@ -462,7 +462,7 @@ function render(){
     const sorted = [...entries].sort((a,b) => (b.dateRaw||0) - (a.dateRaw||0));
     list.innerHTML = sorted.slice(0, 40).map(e => {
       let countHtml;
-      if(e.type === 'Adjustment'){
+      if(e.type.startsWith('Adjustment')){
         countHtml = `<span class="entry-count adjust">Reset to ${e.bags} bags</span>`;
       } else {
         countHtml = `<span class="entry-count ${e.type === 'Received' ? 'received' : 'used'}">${e.type === 'Received' ? '+' : '\u2212'}${e.bags} bags</span>`;
@@ -569,7 +569,7 @@ function buildPdf(){
 
   const byPerson = {};
   filtered.forEach(e => {
-    if(e.type === 'Adjustment') return; // resets aren't a received/used tally
+    if(e.type.startsWith('Adjustment')) return; // resets aren't a received/used tally
     const name = e.name || 'Unspecified';
     if(!byPerson[name]) byPerson[name] = { received: 0, used: 0 };
     if(e.type === 'Received') byPerson[name].received += e.bags;
