@@ -1,4 +1,4 @@
-<!doctype html>
+undefined<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -250,6 +250,10 @@
   .income-row{display:grid; grid-template-columns:1.6fr 1fr auto; gap:10px; align-items:center; padding:9px 4px; border-bottom:1px solid var(--border);}
   .income-row:last-child{border-bottom:none;}
   .income-add{display:grid; grid-template-columns:1.6fr 1fr auto; gap:10px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);}
+  .report-grid{display:flex; flex-direction:column;}
+  .report-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 4px; border-bottom:1px solid var(--border);}
+  .report-row:last-child{border-bottom:none;}
+  .report-row strong{font-size:13.5px;}
   .empty-note{color:var(--ink-faint); font-size:13.5px; padding:6px 4px;}
 
   footer{text-align:center; color:var(--ink-faint); font-size:12.5px; margin-top:26px; line-height:1.6;}
@@ -269,6 +273,7 @@
     .add-form{grid-template-columns:1fr 1fr;}
     .add-form > div:first-child{grid-column:1/-1;}
     .income-row, .income-add{grid-template-columns:1fr 1fr;}
+    .report-row{flex-direction:column; align-items:flex-start; gap:6px;}
   }
   @media (prefers-reduced-motion: reduce){ .toast{transition:none;} }
   .loading-note{padding:60px 20px; text-align:center; color:var(--ink-soft); font-size:14px;}
@@ -512,6 +517,179 @@ function persist(){
 
 function commit(fn){ fn(); render(); persist(); }
 
+
+/* ---------------- reports (CSV export) ---------------- */
+function isoDate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+
+function csvCell(v){
+  if(v===null||v===undefined) v='';
+  v = String(v);
+  if(/[",\n\r]/.test(v)){ v = '"' + v.replace(/"/g,'""') + '"'; }
+  return v;
+}
+function toCSV(rows){ return rows.map(r => r.map(csvCell).join(',')).join('\r\n'); }
+function downloadCSV(filename, rows){
+  const csv = '\uFEFF' + toCSV(rows);
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+}
+
+function weekRange(d){
+  const s = startOfDay(d);
+  const dow = s.getDay();
+  const start = new Date(s); start.setDate(s.getDate() - dow);
+  const end = new Date(start); end.setDate(start.getDate() + 6);
+  return {start, end};
+}
+
+function billsDueInRange(start, end){
+  const keys = new Set([monthKeyOf(start), monthKeyOf(end)]);
+  const out = [];
+  activeBills().forEach(b => {
+    keys.forEach(mk => {
+      const due = dueDateFor(b, mk);
+      if(due >= start && due <= end){
+        out.push({bill:b, monthKey:mk, due, amount:effectiveAmount(b, mk), status:statusFor(b, mk), override:getOverride(mk, b.id)});
+      }
+    });
+  });
+  out.sort((a,b) => a.due - b.due);
+  const seen = new Set();
+  return out.filter(r => { const k=r.bill.id+'|'+r.monthKey; if(seen.has(k)) return false; seen.add(k); return true; });
+}
+
+function buildWeeklyReportRows(start, end){
+  const items = billsDueInRange(start, end);
+  const rows = [
+    ['BillWise \u2014 Week of ' + formatDate(start) + ' to ' + formatDate(end)],
+    [],
+    ['Bill','Category','Due Date','Amount','Status','Paid By']
+  ];
+  let total = 0;
+  items.forEach(it => {
+    total += it.amount;
+    rows.push([it.bill.name, it.bill.category, isoDate(it.due), it.amount.toFixed(2), statusLabel(it.status), it.override.paidBy || '']);
+  });
+  rows.push([]);
+  rows.push(['Total', '', '', total.toFixed(2), '', '']);
+  return rows;
+}
+
+function buildMonthlyReportRows(monthKey){
+  const m = state.months[monthKey];
+  const income = (m && m.income) || [];
+  const bills = activeBills().slice().sort((a,b) => a.dueDay - b.dueDay);
+  const t = monthTotals(monthKey);
+  const rows = [
+    ['BillWise \u2014 Monthly Report \u2014 ' + monthLabel(monthKey)],
+    [],
+    ['Income'],
+    ['Source','Amount']
+  ];
+  let incomeTotal = 0;
+  income.forEach(e => { incomeTotal += (parseFloat(e.amount)||0); rows.push([e.source, (parseFloat(e.amount)||0).toFixed(2)]); });
+  if(!income.length) rows.push(['(none logged)','']);
+  rows.push(['Total income', incomeTotal.toFixed(2)]);
+  rows.push([]);
+  rows.push(['Bills']);
+  rows.push(['Bill','Category','Due Date','Amount','Status','Paid By','Paid Date']);
+  bills.forEach(b => {
+    const due = dueDateFor(b, monthKey);
+    const o = getOverride(monthKey, b.id);
+    rows.push([b.name, b.category, isoDate(due), effectiveAmount(b, monthKey).toFixed(2), statusLabel(statusFor(b, monthKey)), o.paidBy||'', o.paidDate||'']);
+  });
+  rows.push([]);
+  rows.push(['Summary']);
+  rows.push(['Income', t.income.toFixed(2)]);
+  rows.push(['Total bills', t.bills.toFixed(2)]);
+  rows.push(['Paid so far', t.paid.toFixed(2)]);
+  rows.push(['Unpaid', t.unpaid.toFixed(2)]);
+  rows.push(['Leftover', t.leftover.toFixed(2)]);
+  return rows;
+}
+
+function buildYearlyReportRows(year){
+  const rows = [
+    ['BillWise \u2014 Annual Summary \u2014 ' + year],
+    [],
+    ['Month','Income','Total Bills','Paid','Unpaid','Leftover']
+  ];
+  let yi=0, yb=0, yp=0, yu=0, yl=0;
+  for(let mo=1; mo<=12; mo++){
+    const mk = year + '-' + pad2(mo);
+    const t = monthTotals(mk);
+    yi+=t.income; yb+=t.bills; yp+=t.paid; yu+=t.unpaid; yl+=t.leftover;
+    rows.push([monthLabel(mk), t.income.toFixed(2), t.bills.toFixed(2), t.paid.toFixed(2), t.unpaid.toFixed(2), t.leftover.toFixed(2)]);
+  }
+  rows.push([]);
+  rows.push(['Year total', yi.toFixed(2), yb.toFixed(2), yp.toFixed(2), yu.toFixed(2), yl.toFixed(2)]);
+  return rows;
+}
+
+function buildTaxReportRows(year){
+  const rows = [
+    ['BillWise \u2014 Tax Summary \u2014 ' + year],
+    ['Not tax advice \u2014 for your own records or your tax preparer.'],
+    [],
+    ['Income']
+  ];
+  const incomeBySource = {};
+  let incomeTotal = 0;
+  for(let mo=1; mo<=12; mo++){
+    const mk = year + '-' + pad2(mo);
+    const m = state.months[mk];
+    (m && m.income || []).forEach(e => {
+      const amt = parseFloat(e.amount)||0;
+      incomeTotal += amt;
+      incomeBySource[e.source] = (incomeBySource[e.source]||0) + amt;
+    });
+  }
+  rows.push(['Source','Total']);
+  Object.keys(incomeBySource).sort().forEach(src => rows.push([src, incomeBySource[src].toFixed(2)]));
+  if(!Object.keys(incomeBySource).length) rows.push(['(none logged)','']);
+  rows.push(['Total income', incomeTotal.toFixed(2)]);
+  rows.push([]);
+  rows.push(['Expenses by category']);
+  rows.push(['Category','Billed (incurred)','Paid (actual)']);
+  const billed = {}, paidMap = {};
+  for(let mo=1; mo<=12; mo++){
+    const mk = year + '-' + pad2(mo);
+    activeBills().forEach(b => {
+      const amt = effectiveAmount(b, mk);
+      billed[b.category] = (billed[b.category]||0) + amt;
+      if(statusFor(b, mk) === 'paid') paidMap[b.category] = (paidMap[b.category]||0) + amt;
+    });
+  }
+  const categories = Array.from(new Set([...Object.keys(billed), ...Object.keys(paidMap)])).sort();
+  let totalBilled=0, totalPaid=0;
+  categories.forEach(cat => {
+    const bAmt = billed[cat]||0, pAmt = paidMap[cat]||0;
+    totalBilled += bAmt; totalPaid += pAmt;
+    rows.push([cat, bAmt.toFixed(2), pAmt.toFixed(2)]);
+  });
+  rows.push(['Total expenses', totalBilled.toFixed(2), totalPaid.toFixed(2)]);
+  rows.push([]);
+  rows.push(['Net (income minus paid expenses)', (incomeTotal-totalPaid).toFixed(2)]);
+  return rows;
+}
+
+function renderReports(){
+  const {start, end} = weekRange(today);
+  const year = partsOf(viewMonth).y;
+  return '<div class="section"><div class="section-head"><h2>Reports</h2><span class="hint">Download CSV files for your records or taxes</span></div>' +
+    '<div class="report-grid">' +
+      '<div class="report-row"><div><strong>This week\u2019s bills</strong><div class="paid-note">'+formatDate(start)+' \u2013 '+formatDate(end)+'</div></div><button type="button" class="btn btn-sm" data-action="download-week">Download CSV</button></div>' +
+      '<div class="report-row"><div><strong>'+monthLabel(viewMonth)+'</strong><div class="paid-note">Income, bills, and paid status for this month</div></div><button type="button" class="btn btn-sm" data-action="download-month">Download CSV</button></div>' +
+      '<div class="report-row"><div><strong>'+year+' annual summary</strong><div class="paid-note">All 12 months at a glance</div></div><button type="button" class="btn btn-sm" data-action="download-year">Download CSV</button></div>' +
+      '<div class="report-row"><div><strong>'+year+' tax summary</strong><div class="paid-note">Income and expenses by category \u2014 not tax advice</div></div><button type="button" class="btn btn-sm" data-action="download-tax">Download CSV</button></div>' +
+    '</div>' +
+  '</div>';
+}
+
 /* ---------------- rendering ---------------- */
 const CATEGORY_SUGGESTIONS = ['Housing','Utilities','Insurance','Debt','Subscription','Transportation','Childcare','Other'];
 
@@ -682,6 +860,7 @@ function render(){
     renderStats() +
     renderBills() +
     renderIncome() +
+    renderReports() +
     '<footer>Reminders update automatically whenever this page is open — BillWise doesn’t send texts or emails on its own.<br>' + footerSyncNote() + '</footer>';
   document.getElementById('app-root').innerHTML = html;
 }
@@ -707,6 +886,10 @@ root.addEventListener('click', (e) => {
     const bill = t.getAttribute('data-bill'), mk = t.getAttribute('data-month');
     commit(() => togglePaid(mk, bill, state.household[0]));
   }
+  else if(action === 'download-week'){ const r = weekRange(today); downloadCSV('billwise-week-'+isoDate(r.start)+'.csv', buildWeeklyReportRows(r.start, r.end)); }
+  else if(action === 'download-month'){ downloadCSV('billwise-'+viewMonth+'.csv', buildMonthlyReportRows(viewMonth)); }
+  else if(action === 'download-year'){ const y = partsOf(viewMonth).y; downloadCSV('billwise-'+y+'-annual.csv', buildYearlyReportRows(y)); }
+  else if(action === 'download-tax'){ const y = partsOf(viewMonth).y; downloadCSV('billwise-'+y+'-tax-summary.csv', buildTaxReportRows(y)); }
 });
 
 root.addEventListener('change', (e) => {
