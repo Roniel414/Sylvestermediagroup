@@ -241,7 +241,7 @@
   .confirm-remove{display:flex; gap:6px; align-items:center;}
 
   .add-form{
-    display:grid; grid-template-columns: 1.7fr 1fr 0.8fr 0.9fr auto; gap:10px; align-items:end;
+    display:grid; grid-template-columns: 1.6fr 1fr 0.7fr 0.9fr 1.3fr auto; gap:10px; align-items:end;
     margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);
   }
   .add-form label{display:block; font-size:11px; color:var(--ink-faint); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.04em;}
@@ -249,12 +249,42 @@
 
   .income-row{display:grid; grid-template-columns:1.6fr 1fr auto; gap:10px; align-items:center; padding:9px 4px; border-bottom:1px solid var(--border);}
   .income-row:last-child{border-bottom:none;}
-  .income-add{display:grid; grid-template-columns:1.6fr 1fr auto; gap:10px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);}
+  .income-add{display:grid; grid-template-columns:1.6fr 1fr auto auto; align-items:center; gap:10px; margin-top:12px; padding-top:12px; border-top:1px dashed var(--border);}
   .report-grid{display:flex; flex-direction:column;}
   .report-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 4px; border-bottom:1px solid var(--border);}
   .report-row:last-child{border-bottom:none;}
   .report-row strong{font-size:13.5px;}
   .empty-note{color:var(--ink-faint); font-size:13.5px; padding:6px 4px;}
+
+
+  /* ---- recurring pills, summary, small controls ---- */
+  .recur-pill{display:inline-flex; align-items:center; gap:5px; font-family:inherit; font-size:11px; font-weight:600; border-radius:100px; padding:3px 9px; width:fit-content; border:1px solid transparent; cursor:pointer;}
+  .recur-pill.recurring{background:var(--primary-soft); color:var(--primary-strong); border-color:var(--primary-soft);}
+  .recur-pill.onetime{background:var(--surface-2); color:var(--ink-soft); border-color:var(--border);}
+  .recur-pill.static{cursor:default;}
+  .link-btn{background:none; border:none; color:var(--primary); font-family:inherit; font-size:11px; padding:0; margin-top:2px; cursor:pointer; text-decoration:underline; text-align:left;}
+  .check-wrap{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); white-space:nowrap;}
+  .inc-name{display:flex; flex-direction:column; gap:4px; align-items:flex-start;}
+  .income-row input[type=number]{width:110px; font-family:'IBM Plex Mono', monospace;}
+  .summary.short{border-color:var(--red);}
+  .summary-line{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:9px 4px; border-bottom:1px solid var(--border); font-size:14px;}
+  .summary-line .mono{font-family:'IBM Plex Mono', monospace; font-variant-numeric:tabular-nums;}
+  .summary-line.sub{font-size:12.5px; color:var(--ink-soft);}
+  .summary-result{display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:14px 4px 6px; font-size:18px; font-weight:700;}
+  .summary-result .mono{font-family:'IBM Plex Mono', monospace; font-size:24px;}
+  .summary-result.ok .mono{color:var(--paid);}
+  .summary-result.short .mono{color:var(--red);}
+  .summary-msg{margin-top:10px; border-radius:9px; padding:10px 13px; font-size:13.5px;}
+  .summary-msg.ok{background:var(--paid-soft); color:var(--paid);}
+  .summary-msg.short{background:var(--red-soft); color:var(--red);}
+  .summary-biggest{margin-top:10px; font-size:12.5px; color:var(--ink-soft);}
+  .income-add > *{min-width:0;}
+  .income-add input[type=text], .income-add input[type=number]{width:100%;}
+  @media (max-width:760px){
+    .income-add input[name=source]{grid-column:1/-1;}
+    .income-add .btn{grid-column:1/-1;}
+    .income-row input[type=number]{width:100%;}
+  }
 
   footer{text-align:center; color:var(--ink-faint); font-size:12.5px; margin-top:26px; line-height:1.6;}
   footer .sync-ok{color:var(--paid);}
@@ -333,6 +363,7 @@ let state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 let today = new Date();
 let viewMonth = monthKeyOf(today);
 let pendingRemove = null;
+let pendingRecurring = null;
 let connected = null; // null = connecting, true/false once we hear back
 
 /* ---------------- helpers ---------------- */
@@ -354,14 +385,53 @@ function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
 function daysBetween(a,b){ return Math.round((startOfDay(a)-startOfDay(b))/86400000); }
 
 function ensureMonth(monthKey){
-  if(!state.months[monthKey]) state.months[monthKey] = {income:[], overrides:{}};
+  if(!state.months[monthKey]) state.months[monthKey] = {income:[], overrides:{}, incomeOverrides:{}};
   if(!state.months[monthKey].income) state.months[monthKey].income = [];
   if(!state.months[monthKey].overrides) state.months[monthKey].overrides = {};
+  if(!state.months[monthKey].incomeOverrides) state.months[monthKey].incomeOverrides = {};
   return state.months[monthKey];
 }
 function getOverride(monthKey, billId){ const m=state.months[monthKey]; return (m && m.overrides && m.overrides[billId]) || {}; }
-function effectiveAmount(bill, monthKey){ const o=getOverride(monthKey, bill.id); return (o.amount===undefined||o.amount===null) ? bill.defaultAmount : o.amount; }
+/* A bill is "recurring" unless it was saved as one-time (bills saved before this
+   upgrade have no flag and keep repeating every month, exactly as before). */
+function isRecurring(b){ return b.recurring !== false; }
+function billAppliesTo(b, mk){
+  if(b.active === false) return false;
+  if(isRecurring(b)){
+    if(b.startMonth && mk < b.startMonth) return false;
+    if(b.endMonth && mk > b.endMonth) return false;
+    return true;
+  }
+  return b.month === mk;
+}
+function billsForMonth(mk){ return state.bills.filter(b => billAppliesTo(b, mk)); }
+/* "Usual" amount = base amount, changed by any "make usual from <month> on" steps. */
+function rateAmount(base, rates, mk){
+  let amt = base;
+  (rates || []).slice().sort((a,b) => a.from < b.from ? -1 : 1).forEach(r => { if(r.from <= mk) amt = r.amount; });
+  return amt;
+}
+function usualAmount(bill, mk){ return rateAmount(bill.defaultAmount, bill.rates, mk); }
+function effectiveAmount(bill, monthKey){ const o=getOverride(monthKey, bill.id); return (o.amount===undefined||o.amount===null) ? usualAmount(bill, monthKey) : o.amount; }
 function activeBills(){ return state.bills.filter(b => b.active !== false); }
+
+function recurringIncomeFor(mk){
+  return (state.recurringIncome || []).filter(r => (!r.from || mk >= r.from) && (!r.until || mk <= r.until));
+}
+/* Everything coming in for a month: recurring income (with any this-month change) + one-time entries. */
+function incomeForMonth(mk){
+  const m = state.months[mk];
+  const ov = (m && m.incomeOverrides) || {};
+  const rec = recurringIncomeFor(mk).map(r => {
+    const usual = parseFloat(rateAmount(r.amount, r.rates, mk)) || 0;
+    const o = ov[r.id];
+    return {id:r.id, source:r.source, recurring:true, usual:usual, amount:(o===undefined||o===null) ? usual : (parseFloat(o)||0)};
+  });
+  const one = ((m && m.income) || []).map(e => ({id:e.id, source:e.source, recurring:false, amount:parseFloat(e.amount)||0}));
+  return rec.concat(one);
+}
+function ordinal(n){ n = parseInt(n,10)||1; const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]); }
+function monthShort(monthKey){ const p=partsOf(monthKey); return new Date(p.y, p.m-1, 1).toLocaleDateString('en-US', {month:'short', year:'numeric'}); }
 function findBill(id){ return state.bills.filter(b => b.id === id)[0]; }
 
 function statusFor(bill, monthKey){
@@ -376,15 +446,15 @@ function statusFor(bill, monthKey){
 function statusLabel(s){ return {overdue:'Overdue', soon:'Due soon', upcoming:'Upcoming', paid:'Paid'}[s] || s; }
 
 function monthTotals(monthKey){
-  const m = state.months[monthKey];
-  const income = (m && m.income || []).reduce((sum, e) => sum + (parseFloat(e.amount)||0), 0);
-  let bills = 0, paid = 0;
-  activeBills().forEach(b => {
+  const income = incomeForMonth(monthKey).reduce((sum, e) => sum + e.amount, 0);
+  let bills = 0, paid = 0, recurringTotal = 0, oneTimeTotal = 0;
+  billsForMonth(monthKey).forEach(b => {
     const amt = effectiveAmount(b, monthKey);
     bills += amt;
+    if(isRecurring(b)) recurringTotal += amt; else oneTimeTotal += amt;
     if(statusFor(b, monthKey) === 'paid') paid += amt;
   });
-  return {income, bills, paid, unpaid: bills-paid, leftover: income-bills};
+  return {income, bills, paid, unpaid: bills-paid, leftover: income-bills, recurringTotal, oneTimeTotal};
 }
 
 function collectReminders(){
@@ -392,7 +462,7 @@ function collectReminders(){
   [-1,0,1].forEach(delta => {
     const mk = addMonths(monthKeyOf(today), delta);
     if(delta === -1 && !state.months[mk]) return;
-    activeBills().forEach(b => {
+    billsForMonth(mk).forEach(b => {
       const s = statusFor(b, mk);
       if(s === 'overdue' || s === 'soon'){
         out.push({bill:b, monthKey:mk, status:s, due:dueDateFor(b, mk), amount:effectiveAmount(b, mk)});
@@ -431,11 +501,31 @@ function setPaidBy(monthKey, billId, name){
   m.overrides[billId].paidBy = name;
 }
 function addBill(data){
-  state.bills.push({
+  const recurring = data.recurring !== false;
+  const bill = {
     id: uid('b'), name:data.name||'New bill', category:data.category||'Other',
     dueDay: Math.min(Math.max(parseInt(data.dueDay,10)||1,1),31),
-    defaultAmount: parseFloat(data.amount)||0, active:true
-  });
+    defaultAmount: parseFloat(data.amount)||0, active:true, recurring: recurring
+  };
+  if(recurring) bill.startMonth = data.month; else bill.month = data.month;
+  state.bills.push(bill);
+  state.isExample = false;
+}
+function setBillRecurring(billId, makeRecurring, mk){
+  const b = findBill(billId);
+  if(!b) return;
+  if(makeRecurring){ b.recurring = true; b.startMonth = b.month || mk; delete b.month; delete b.endMonth; }
+  else { b.recurring = false; b.month = mk; delete b.startMonth; delete b.endMonth; }
+  state.isExample = false;
+}
+/* "Make usual from <month> on": new amount for this month and every month after it. */
+function makeBillUsual(billId, mk, amount){
+  const b = findBill(billId);
+  if(!b) return;
+  b.rates = (b.rates || []).filter(r => r.from < mk);
+  b.rates.push({from: mk, amount: amount});
+  const o = getOverride(mk, billId);
+  if(o.amount !== undefined) delete o.amount;
   state.isExample = false;
 }
 function updateBillField(billId, field, value){
@@ -448,13 +538,40 @@ function updateBillField(billId, field, value){
 }
 function removeBill(billId){ state.bills = state.bills.filter(b => b.id !== billId); }
 function addIncome(monthKey, data){
-  const m = ensureMonth(monthKey);
-  m.income.push({id:uid('i'), source:data.source||'Income', amount:parseFloat(data.amount)||0});
+  if(data.recurring){
+    state.recurringIncome = state.recurringIncome || [];
+    state.recurringIncome.push({id:uid('r'), source:data.source||'Income', amount:parseFloat(data.amount)||0, from:monthKey});
+  } else {
+    const m = ensureMonth(monthKey);
+    m.income.push({id:uid('i'), source:data.source||'Income', amount:parseFloat(data.amount)||0});
+  }
   state.isExample = false;
 }
 function removeIncome(monthKey, incomeId){
+  const r = (state.recurringIncome || []).filter(x => x.id === incomeId)[0];
+  if(r){
+    // Recurring income stops from this month on; earlier months keep their history.
+    if(!r.from || monthKey <= r.from) state.recurringIncome = state.recurringIncome.filter(x => x.id !== incomeId);
+    else r.until = addMonths(monthKey, -1);
+    return;
+  }
   const m = ensureMonth(monthKey);
   m.income = m.income.filter(e => e.id !== incomeId);
+}
+function setIncomeAmount(monthKey, incomeId, isRec, value){
+  const m = ensureMonth(monthKey);
+  if(isRec){ m.incomeOverrides[incomeId] = value; }
+  else { m.income.forEach(e => { if(e.id === incomeId) e.amount = value; }); }
+}
+function makeIncomeUsual(monthKey, incomeId){
+  const r = (state.recurringIncome || []).filter(x => x.id === incomeId)[0];
+  if(!r) return;
+  const cur = incomeForMonth(monthKey).filter(e => e.id === incomeId)[0];
+  const amount = cur ? cur.amount : r.amount;
+  r.rates = (r.rates || []).filter(x => x.from < monthKey);
+  r.rates.push({from: monthKey, amount: amount});
+  const m = ensureMonth(monthKey);
+  delete m.incomeOverrides[incomeId];
 }
 function addPerson(name){
   name = (name||'').trim();
@@ -550,6 +667,7 @@ function billsDueInRange(start, end){
   const out = [];
   activeBills().forEach(b => {
     keys.forEach(mk => {
+      if(!billAppliesTo(b, mk)) return;
       const due = dueDateFor(b, mk);
       if(due >= start && due <= end){
         out.push({bill:b, monthKey:mk, due, amount:effectiveAmount(b, mk), status:statusFor(b, mk), override:getOverride(mk, b.id)});
@@ -579,9 +697,8 @@ function buildWeeklyReportRows(start, end){
 }
 
 function buildMonthlyReportRows(monthKey){
-  const m = state.months[monthKey];
-  const income = (m && m.income) || [];
-  const bills = activeBills().slice().sort((a,b) => a.dueDay - b.dueDay);
+  const income = incomeForMonth(monthKey);
+  const bills = billsForMonth(monthKey).slice().sort((a,b) => a.dueDay - b.dueDay);
   const t = monthTotals(monthKey);
   const rows = [
     ['BillWise \u2014 Monthly Report \u2014 ' + monthLabel(monthKey)],
@@ -640,8 +757,7 @@ function buildTaxReportRows(year){
   let incomeTotal = 0;
   for(let mo=1; mo<=12; mo++){
     const mk = year + '-' + pad2(mo);
-    const m = state.months[mk];
-    (m && m.income || []).forEach(e => {
+    incomeForMonth(mk).forEach(e => {
       const amt = parseFloat(e.amount)||0;
       incomeTotal += amt;
       incomeBySource[e.source] = (incomeBySource[e.source]||0) + amt;
@@ -657,7 +773,7 @@ function buildTaxReportRows(year){
   const billed = {}, paidMap = {};
   for(let mo=1; mo<=12; mo++){
     const mk = year + '-' + pad2(mo);
-    activeBills().forEach(b => {
+    billsForMonth(mk).forEach(b => {
       const amt = effectiveAmount(b, mk);
       billed[b.category] = (billed[b.category]||0) + amt;
       if(statusFor(b, mk) === 'paid') paidMap[b.category] = (paidMap[b.category]||0) + amt;
@@ -746,7 +862,7 @@ function renderStats(){
     '<div class="stat"><div class="k">Income</div><div class="v mono">'+formatMoney(t.income)+'</div></div>' +
     '<div class="stat"><div class="k">Total bills</div><div class="v mono">'+formatMoney(t.bills)+'</div></div>' +
     '<div class="stat"><div class="k">Paid so far</div><div class="v mono">'+formatMoney(t.paid)+'</div></div>' +
-    '<div class="stat leftover"><div class="k">Leftover</div><div class="v mono '+leftoverCls+'">'+formatMoney(t.leftover)+'</div></div>' +
+    '<div class="stat leftover"><div class="k">'+(t.leftover < -0.005 ? 'Short by' : 'Left over')+'</div><div class="v mono '+leftoverCls+'">'+formatMoney(t.leftover)+'</div></div>' +
     '</div>';
 }
 
@@ -755,7 +871,15 @@ function renderBillRow(bill){
   const status = statusFor(bill, viewMonth);
   const amount = effectiveAmount(bill, viewMonth);
   const o = getOverride(viewMonth, bill.id);
-  const hasOverride = (o.amount !== undefined && o.amount !== null && o.amount !== bill.defaultAmount);
+  const recurring = isRecurring(bill);
+  const usual = usualAmount(bill, viewMonth);
+  const hasOverride = recurring && (Math.abs(amount - usual) > 0.004);
+  const pillHtml = pendingRecurring === bill.id
+    ? '<span class="confirm-remove"><span class="paid-note">Make it one-time ('+monthShort(viewMonth)+' only)?</span>' +
+        '<button type="button" class="btn btn-sm" data-action="confirm-one-time" data-bill="'+bill.id+'">Yes</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="cancel-one-time">Cancel</button></span>'
+    : '<button type="button" class="recur-pill '+(recurring ? 'recurring' : 'onetime')+'" data-action="toggle-recurring" data-bill="'+bill.id+'" title="'+(recurring ? 'Repeats every month on this day. Click to make it a one-time bill.' : 'Only counted this month. Click to repeat it every month.')+'">' +
+        (recurring ? '\u21BB Every month \u00B7 due the '+ordinal(bill.dueDay) : 'One-time \u00B7 this month only') + '</button>';
   const householdOptions = state.household.map(n =>
     '<option value="'+escapeHtml(n)+'"'+(o.paidBy===n?' selected':'')+'>'+escapeHtml(n)+'</option>'
   ).join('');
@@ -765,6 +889,7 @@ function renderBillRow(bill){
     '<div class="bill-name-cell">' +
       '<input type="text" data-field="name" data-bill="'+bill.id+'" value="'+escapeHtml(bill.name)+'" maxlength="40">' +
       '<input type="text" list="category-suggestions" data-field="category" data-bill="'+bill.id+'" value="'+escapeHtml(bill.category)+'" maxlength="24" class="cat-tag" style="border-radius:100px;">' +
+      pillHtml +
     '</div>' +
     '<div class="due-cell">' +
       '<span class="date">'+formatDate(due)+'</span>' +
@@ -773,7 +898,7 @@ function renderBillRow(bill){
     '<div><span class="status-pill '+status+'">'+statusLabel(status)+'</span></div>' +
     '<div class="amount-cell">' +
       '<input type="number" step="0.01" min="0" class="mono" data-field="amount" data-bill="'+bill.id+'" value="'+amount+'">' +
-      (hasOverride ? '<div class="default-hint">default '+formatMoney(bill.defaultAmount)+'</div>' : '') +
+      (hasOverride ? '<div class="default-hint">usual '+formatMoney(usual)+'</div><button type="button" class="link-btn" data-action="make-usual" data-bill="'+bill.id+'">Make usual from '+monthShort(viewMonth)+' on</button>' : '') +
     '</div>' +
     '<div class="paid-cell">' +
       '<div class="row">' +
@@ -791,41 +916,74 @@ function renderBillRow(bill){
 }
 
 function renderBills(){
-  const bills = activeBills().slice().sort((a,b) => a.dueDay - b.dueDay);
-  const rows = bills.length ? bills.map(renderBillRow).join('') : '<div class="empty-note">No recurring bills yet — add your first one below.</div>';
+  const bills = billsForMonth(viewMonth).slice().sort((a,b) => a.dueDay - b.dueDay);
+  const rows = bills.length ? bills.map(renderBillRow).join('') : '<div class="empty-note">No bills for this month yet — add one below.</div>';
   const addForm =
     '<form class="add-form" data-action="add-bill">' +
       '<div><label>Bill name</label><input type="text" name="name" required maxlength="40" placeholder="e.g. Water"></div>' +
       '<div><label>Category</label><input type="text" name="category" list="category-suggestions" maxlength="24" placeholder="Utilities"></div>' +
       '<div><label>Due day</label><input type="number" name="dueDay" min="1" max="31" value="1" required></div>' +
       '<div><label>Amount</label><input type="number" name="amount" min="0" step="0.01" required placeholder="0.00"></div>' +
+      '<div><label>Repeats</label><select name="repeat"><option value="monthly">Every month</option><option value="once">This month only</option></select></div>' +
       '<button type="submit" class="btn btn-primary">Add bill</button>' +
     '</form>';
   const datalist = '<datalist id="category-suggestions">' + CATEGORY_SUGGESTIONS.map(c => '<option value="'+c+'">').join('') + '</datalist>';
   return '<div class="section">' +
-    '<div class="section-head"><h2>Bills — '+monthLabel(viewMonth)+'</h2><span class="hint">Amount edits apply to this month only</span></div>' +
+    '<div class="section-head"><h2>Bills — '+monthLabel(viewMonth)+'</h2><span class="hint">Typing a new amount changes this month only. \u201CMake usual\u201D changes it from this month on.</span></div>' +
     '<div class="row-grid-head"><div>Bill</div><div>Due</div><div>Status</div><div>Amount</div><div>Paid</div><div></div></div>' +
     rows + addForm + datalist +
   '</div>';
 }
 
 function renderIncome(){
-  const m = state.months[viewMonth];
-  const entries = (m && m.income) || [];
+  const entries = incomeForMonth(viewMonth);
   const rows = entries.length
-    ? entries.map(e =>
-        '<div class="income-row"><span>'+escapeHtml(e.source)+'</span>' +
-        '<span class="mono">'+formatMoney(e.amount)+'</span>' +
-        '<button class="btn-ghost" data-action="remove-income" data-income="'+e.id+'" title="Remove">✕</button></div>'
-      ).join('')
+    ? entries.map(e => {
+        const hasOv = e.recurring && Math.abs(e.amount - e.usual) > 0.004;
+        const tag = e.recurring
+          ? '<span class="recur-pill recurring static">\u21BB Every month</span>'
+          : '<span class="recur-pill onetime static">One-time</span>';
+        return '<div class="income-row"><span class="inc-name"><span>'+escapeHtml(e.source)+'</span>'+tag+'</span>' +
+          '<span><input type="number" step="0.01" min="0" class="mono" data-income-amt="'+e.id+'" data-recurring="'+(e.recurring?1:0)+'" value="'+e.amount+'">' +
+          (hasOv ? '<div class="default-hint">usual '+formatMoney(e.usual)+'</div><button type="button" class="link-btn" data-action="make-income-usual" data-income="'+e.id+'">Make usual from '+monthShort(viewMonth)+' on</button>' : '') +
+          '</span>' +
+          '<button class="btn-ghost" data-action="remove-income" data-income="'+e.id+'" title="'+(e.recurring ? 'Remove from this month on' : 'Remove')+'">\u2715</button></div>';
+      }).join('')
     : '<div class="empty-note">No income logged for '+monthLabel(viewMonth)+' yet.</div>';
   const addForm =
     '<form class="income-add" data-action="add-income">' +
-      '<input type="text" name="source" placeholder="e.g. Jaiden’s paycheck" required maxlength="40">' +
+      '<input type="text" name="source" placeholder="e.g. paycheck" required maxlength="40">' +
       '<input type="number" name="amount" placeholder="0.00" min="0" step="0.01" required>' +
+      '<label class="check-wrap"><input type="checkbox" name="recurring"> Every month</label>' +
       '<button type="submit" class="btn btn-primary">Add income</button>' +
     '</form>';
-  return '<div class="section"><div class="section-head"><h2>Income — '+monthLabel(viewMonth)+'</h2></div>' + rows + addForm + '</div>';
+  return '<div class="section"><div class="section-head"><h2>Income \u2014 '+monthLabel(viewMonth)+'</h2><span class="hint">Tick \u201CEvery month\u201D for pay that comes in monthly</span></div>' + rows + addForm + '</div>';
+}
+
+function renderSummary(){
+  const t = monthTotals(viewMonth);
+  const short = t.leftover < -0.005;
+  const even = Math.abs(t.leftover) <= 0.005;
+  const cls = short ? 'short' : 'ok';
+  const resultLabel = short ? 'Short by' : (even ? 'Even' : 'Left over');
+  const msg = short
+    ? 'Bills are '+formatMoney(-t.leftover)+' more than income this month. Lower an amount, remove or change a bill, or add income to close the gap.'
+    : (even ? 'Income covers every bill exactly this month.' : 'Income covers every bill this month, with '+formatMoney(t.leftover)+' to spare.');
+  const biggest = billsForMonth(viewMonth).map(b => ({name:b.name, amt:effectiveAmount(b, viewMonth)}))
+    .sort((a,b) => b.amt - a.amt).slice(0,3);
+  const biggestHtml = (short && biggest.length)
+    ? '<div class="summary-biggest">Biggest bills this month: ' + biggest.map(b => escapeHtml(b.name)+' '+formatMoney(b.amt)).join(' \u00B7 ') + '</div>' : '';
+  return '<div class="section summary '+cls+'">' +
+    '<div class="section-head"><h2>Budget check \u2014 '+monthLabel(viewMonth)+'</h2><span class="hint">Income minus all bills</span></div>' +
+    '<div class="summary-line"><span>Income coming in</span><span class="mono">'+formatMoney(t.income)+'</span></div>' +
+    '<div class="summary-line"><span>Recurring bills (every month)</span><span class="mono">\u2212 '+formatMoney(t.recurringTotal)+'</span></div>' +
+    '<div class="summary-line"><span>One-time bills</span><span class="mono">\u2212 '+formatMoney(t.oneTimeTotal)+'</span></div>' +
+    '<div class="summary-line"><span><strong>Total bills</strong></span><span class="mono"><strong>\u2212 '+formatMoney(t.bills)+'</strong></span></div>' +
+    '<div class="summary-result '+cls+'"><span>'+resultLabel+'</span><span class="mono">'+(even ? formatMoney(0) : formatMoney(short ? -t.leftover : t.leftover))+'</span></div>' +
+    '<div class="summary-line sub"><span>Paid so far</span><span class="mono">'+formatMoney(t.paid)+'</span></div>' +
+    '<div class="summary-line sub"><span>Still to pay</span><span class="mono">'+formatMoney(t.unpaid)+'</span></div>' +
+    '<div class="summary-msg '+cls+'">'+msg+'</div>' + biggestHtml +
+  '</div>';
 }
 
 function renderExampleBanner(){
@@ -859,6 +1017,7 @@ function render(){
     renderStats() +
     renderBills() +
     renderIncome() +
+    renderSummary() +
     renderReports() +
     '<footer>Reminders update automatically whenever this page is open — BillWise doesn’t send texts or emails on its own.<br>' + footerSyncNote() + '</footer>';
   document.getElementById('app-root').innerHTML = html;
@@ -881,6 +1040,18 @@ root.addEventListener('click', (e) => {
   else if(action === 'cancel-remove-bill'){ pendingRemove = null; render(); }
   else if(action === 'confirm-remove-bill'){ const bid=t.getAttribute('data-bill'); pendingRemove=null; commit(() => removeBill(bid)); }
   else if(action === 'remove-income'){ const iid=t.getAttribute('data-income'); commit(() => removeIncome(viewMonth, iid)); }
+  else if(action === 'toggle-recurring'){
+    const rid = t.getAttribute('data-bill'), rb = findBill(rid);
+    if(rb && isRecurring(rb)){ pendingRecurring = rid; render(); }
+    else { commit(() => setBillRecurring(rid, true, viewMonth)); }
+  }
+  else if(action === 'confirm-one-time'){ const rid2=t.getAttribute('data-bill'); pendingRecurring=null; commit(() => setBillRecurring(rid2, false, viewMonth)); }
+  else if(action === 'cancel-one-time'){ pendingRecurring = null; render(); }
+  else if(action === 'make-usual'){
+    const ub = findBill(t.getAttribute('data-bill'));
+    if(ub){ const amt = effectiveAmount(ub, viewMonth); commit(() => makeBillUsual(ub.id, viewMonth, amt)); }
+  }
+  else if(action === 'make-income-usual'){ const mid=t.getAttribute('data-income'); commit(() => makeIncomeUsual(viewMonth, mid)); }
   else if(action === 'quick-paid'){
     const bill = t.getAttribute('data-bill'), mk = t.getAttribute('data-month');
     commit(() => togglePaid(mk, bill, state.household[0]));
@@ -903,11 +1074,23 @@ root.addEventListener('change', (e) => {
     commit(() => setPaidBy(viewMonth, bid2, el.value));
     return;
   }
+  if(el.matches('[data-income-amt]')){
+    const iid2 = el.getAttribute('data-income-amt'), isRec = el.getAttribute('data-recurring') === '1', val = parseFloat(el.value)||0;
+    commit(() => setIncomeAmount(viewMonth, iid2, isRec, val));
+    return;
+  }
   if(el.matches('[data-field]')){
     const field = el.getAttribute('data-field');
     const billId = el.getAttribute('data-bill');
     if(field === 'amount'){
-      commit(() => setOverrideField(viewMonth, billId, 'amount', parseFloat(el.value)||0));
+      const ab = findBill(billId), newAmt = parseFloat(el.value)||0;
+      if(ab && !isRecurring(ab)){
+        // One-time bill: the amount simply is what you type.
+        commit(() => { updateBillField(billId, 'defaultAmount', newAmt); const oo = getOverride(viewMonth, billId); if(oo.amount !== undefined) delete oo.amount; });
+      } else {
+        // Recurring bill: this month only (use "Make usual" to change every month from here on).
+        commit(() => setOverrideField(viewMonth, billId, 'amount', newAmt));
+      }
     } else {
       commit(() => updateBillField(billId, field, el.value));
     }
@@ -922,10 +1105,10 @@ root.addEventListener('submit', (e) => {
     commit(() => addPerson(name));
     form.reset();
   } else if(form.matches('[data-action="add-bill"]')){
-    const data = { name: form.elements['name'].value, category: form.elements['category'].value || 'Other', dueDay: form.elements['dueDay'].value, amount: form.elements['amount'].value };
+    const data = { name: form.elements['name'].value, category: form.elements['category'].value || 'Other', dueDay: form.elements['dueDay'].value, amount: form.elements['amount'].value, recurring: form.elements['repeat'].value !== 'once', month: viewMonth };
     commit(() => addBill(data));
   } else if(form.matches('[data-action="add-income"]')){
-    const data2 = { source: form.elements['source'].value, amount: form.elements['amount'].value };
+    const data2 = { source: form.elements['source'].value, amount: form.elements['amount'].value, recurring: form.elements['recurring'].checked };
     commit(() => addIncome(viewMonth, data2));
   }
 });
