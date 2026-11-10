@@ -655,6 +655,36 @@ function downloadCSV(filename, rows){
   setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
 }
 
+function printRows(rows){
+  const esc = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let h = '', i = 0, title = (rows[0]&&rows[0][0]) || 'BillWise';
+  rows = rows.slice(1);
+  let open = false;
+  const close = () => { if(open){ h += '</tbody></table>'; open = false; } };
+  rows.forEach((r, idx) => {
+    if(!r.length){ close(); return; }
+    const next = rows[idx+1];
+    if(r.length === 1){ close(); h += '<h2>'+esc(r[0])+'</h2>'; return; }
+    const prev = rows[idx-1];
+    const isHead = !open && prev && prev.length === 1 || (!open && idx === 0);
+    if(!open){ h += '<table><tbody>'; open = true; }
+    const tag = isHead ? 'th' : 'td';
+    const num = c => /^-?\d+(\.\d+)?$/.test(String(c));
+    h += '<tr'+(isHead?' class="hd"':'')+'>'+r.map(c => '<'+tag+(num(c)?' class="n"':'')+'>'+esc(c)+'</'+tag+'>').join('')+'</tr>';
+  });
+  close();
+  const doc = '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>'+
+    'body{font:12px/1.4 Arial,Helvetica,sans-serif;color:#111;margin:24px}h1{font-size:20px;margin:0 0 4px}.sub{color:#555;margin-bottom:14px}'+
+    'h2{font-size:14px;margin:18px 0 6px;border-bottom:2px solid #111;padding-bottom:3px}table{width:100%;border-collapse:collapse;margin-bottom:6px}'+
+    'th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #ccc}th{background:#eee}.n{text-align:right}tr{page-break-inside:avoid}'+
+    '</style></head><body><h1>'+esc(title)+'</h1><div class="sub">Printed '+esc(new Date().toLocaleDateString())+'</div>'+h+'</body></html>';
+  const fr = document.createElement('iframe');
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(fr);
+  fr.contentDocument.open(); fr.contentDocument.write(doc); fr.contentDocument.close();
+  setTimeout(() => { try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ window.print(); } setTimeout(() => fr.remove(), 60000); }, 300);
+}
+
 function weekRange(d){
   const s = startOfDay(d);
   const dow = s.getDay();
@@ -796,12 +826,12 @@ function buildTaxReportRows(year){
 function renderReports(){
   const {start, end} = weekRange(today);
   const year = partsOf(viewMonth).y;
-  return '<div class="section"><div class="section-head"><h2>Reports</h2><span class="hint">Download CSV files for your records or taxes</span></div>' +
+  return '<div class="section"><div class="section-head"><h2>Reports</h2><span class="hint">Print / save as PDF, or download CSV, for records, mortgage and taxes</span></div>' +
     '<div class="report-grid">' +
-      '<div class="report-row"><div><strong>This week\u2019s bills</strong><div class="paid-note">'+formatDate(start)+' \u2013 '+formatDate(end)+'</div></div><button type="button" class="btn btn-sm" data-action="download-week">Download CSV</button></div>' +
-      '<div class="report-row"><div><strong>'+monthLabel(viewMonth)+'</strong><div class="paid-note">Income, bills, and paid status for this month</div></div><button type="button" class="btn btn-sm" data-action="download-month">Download CSV</button></div>' +
-      '<div class="report-row"><div><strong>'+year+' annual summary</strong><div class="paid-note">All 12 months at a glance</div></div><button type="button" class="btn btn-sm" data-action="download-year">Download CSV</button></div>' +
-      '<div class="report-row"><div><strong>'+year+' tax summary</strong><div class="paid-note">Income and expenses by category \u2014 not tax advice</div></div><button type="button" class="btn btn-sm" data-action="download-tax">Download CSV</button></div>' +
+      '<div class="report-row"><div><strong>This week\u2019s bills</strong><div class="paid-note">'+formatDate(start)+' \u2013 '+formatDate(end)+'</div></div><button type="button" class="btn btn-sm" data-action="download-week">Download CSV</button> <button type="button" class="btn btn-sm" data-action="print-week">Print / PDF</button></div>' +
+      '<div class="report-row"><div><strong>'+monthLabel(viewMonth)+'</strong><div class="paid-note">Income, bills, and paid status for this month</div></div><button type="button" class="btn btn-sm" data-action="download-month">Download CSV</button> <button type="button" class="btn btn-sm" data-action="print-month">Print / PDF</button></div>' +
+      '<div class="report-row"><div><strong>'+year+' annual summary</strong><div class="paid-note">All 12 months at a glance</div></div><button type="button" class="btn btn-sm" data-action="download-year">Download CSV</button> <button type="button" class="btn btn-sm" data-action="print-year">Print / PDF</button></div>' +
+      '<div class="report-row"><div><strong>'+year+' tax summary</strong><div class="paid-note">Income and expenses by category \u2014 not tax advice</div></div><button type="button" class="btn btn-sm" data-action="download-tax">Download CSV</button> <button type="button" class="btn btn-sm" data-action="print-tax">Print / PDF</button></div>' +
     '</div>' +
   '</div>';
 }
@@ -1060,6 +1090,10 @@ root.addEventListener('click', (e) => {
   else if(action === 'download-week'){ const r = weekRange(today); downloadCSV('billwise-week-'+isoDate(r.start)+'.csv', buildWeeklyReportRows(r.start, r.end)); }
   else if(action === 'download-month'){ downloadCSV('billwise-'+viewMonth+'.csv', buildMonthlyReportRows(viewMonth)); }
   else if(action === 'download-year'){ const y = partsOf(viewMonth).y; downloadCSV('billwise-'+y+'-annual.csv', buildYearlyReportRows(y)); }
+  else if(action === 'print-week'){ const r = weekRange(today); printRows(buildWeeklyReportRows(r.start, r.end)); }
+  else if(action === 'print-month'){ printRows(buildMonthlyReportRows(viewMonth)); }
+  else if(action === 'print-year'){ printRows(buildYearlyReportRows(partsOf(viewMonth).y)); }
+  else if(action === 'print-tax'){ printRows(buildTaxReportRows(partsOf(viewMonth).y)); }
   else if(action === 'download-tax'){ const y = partsOf(viewMonth).y; downloadCSV('billwise-'+y+'-tax-summary.csv', buildTaxReportRows(y)); }
 });
 
